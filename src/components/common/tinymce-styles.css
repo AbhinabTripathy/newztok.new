@@ -1,0 +1,80 @@
+/* Custom styles for TinyMCE Editor */
+
+.tox-tinymce {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+.tox-statusbar {
+  border-top: 1px solid #e5e7eb !important;
+}
+
+.tox-statusbar__branding {
+  display: none !important;
+}
+
+.tox-notification {
+  display: none !important;
+}
+
+/* Add this styling for the editor when TinyMCE isn't fully loaded */
+.tinymce-fallback {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px;
+  min-height: 200px;
+  width: 100%;
+  background-color: #f9fafb;
+}
+
+/* Make sure the editor is visible even when CSS fails to load */
+.tinymce-container {
+  position: relative;
+  min-height: 300px;
+  margin-bottom: 16px;
+}
+
+/* Error message for editor load failures */
+.tinymce-error {
+  padding: 10px;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #f87171;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+/* Hide TinyMCE domain warning */
+.tox-notification--warning {
+  display: none !important;
+}
+
+.tox-notification--in {
+  display: none !important;
+}
+
+/* Hide domain alerts in both the main editor and iframe */
+.tox-notifications-container,
+.tox-notification {
+  display: none !important;
+}
+
+/* Make sure TinyMCE dialogs are visible */
+.tox-dialog,
+.tox-dialog__body,
+.tox-dialog__footer {
+  display: flex !important;
+}
+
+/* Adjust overlay */
+[role="alert"] {
+  display: none !important;
+}
+
+/* Additional styling for the editor itself */
+.tox-tinymce {
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+} 

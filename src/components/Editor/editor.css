@@ -1,0 +1,27 @@
+/* Editor Component Styles */
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Add custom styling to work around TinyMCE issues */
+.tox-tinymce {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 6px !important;
+}
+
+/* Fix for read-only issues */
+.tox-editor-container .tox-edit-area {
+  background-color: white !important;
+}
+
+/* Style for the notification message */
+.tox-notification {
+  display: none !important; /* Hide TinyMCE notifications about API key */
+}
+
+/* Improve accessibility */
+.tox-statusbar__branding {
+  display: none !important; /* Hide branding to avoid confusion */
+} 
