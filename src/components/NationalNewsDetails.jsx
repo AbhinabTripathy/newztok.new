@@ -445,9 +445,9 @@ const NationalNewsDetails = () => {
         );
       }
       
-      // Construct WhatsApp share URL with just the news URL to leverage meta tags
-      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:*`);
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText} ${encodeURIComponent(newsUrl)}`;
+      // Construct WhatsApp share URL with news URL and app download links
+      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:* ${newsUrl}\n\n📱 *Download NewzTok App:*\n• Android: https://play.google.com/store/apps/details?id=com.newztok\n• iOS: https://apps.apple.com/in/app/newztok/id6746141322`);
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
       
       // Open WhatsApp in a new tab
       window.open(whatsappUrl, '_blank');
