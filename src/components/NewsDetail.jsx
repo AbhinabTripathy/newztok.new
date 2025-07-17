@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import AdComponent from './AdSenseAds';
 import {
   Box,
   Container,
@@ -1439,6 +1440,12 @@ const NewsDetail = () => {
             __html: newsData.content || "No content available for this article." 
           }}
         />
+        
+        {/* In-Article Ad */}
+        <AdComponent type="in-article" adSlot="1234567890" />
+        
+        {/* Display Ad before Comments */}
+        <AdComponent type="display" adSlot="1234567891" />
         
         {/* Comments Section */}
         <Box sx={{ py: 3, bgcolor: '#f9f9f9', borderRadius: 2, mt: 4 }}>

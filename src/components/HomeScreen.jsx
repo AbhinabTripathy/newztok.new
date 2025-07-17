@@ -18,6 +18,7 @@ import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import axios from 'axios';
 import { useStateContext } from './Header'; // Import state context
+import AdComponent from './AdSenseAds';
 
 const HomeScreen = () => {
   // State variables for news sections
