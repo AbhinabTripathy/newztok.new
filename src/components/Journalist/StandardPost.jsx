@@ -94,6 +94,7 @@ const compressImage = (file, maxSizeMB = 5) => {
 const StandardPost = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [state, setState] = useState('');
@@ -415,6 +416,54 @@ const StandardPost = () => {
     }
   };
 
+  const handleAdditionalImageChange = (index, e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      
+      // Check if file is too large (over 50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        setError(`Additional Image ${index + 1}: File size exceeds 50MB. Please select a smaller image.`);
+        return;
+      }
+      
+      // Set loading state
+      setLoading(true);
+      
+      // Show compressing message
+      setError(`Compressing additional image ${index + 1} for better upload performance. Please wait...`);
+      
+      // Compress the image before setting it (target 5MB)
+      compressImage(selectedFile, 5)
+        .then(compressedFile => {
+          const newAdditionalImages = [...additionalImages];
+          newAdditionalImages[index] = compressedFile;
+          setAdditionalImages(newAdditionalImages);
+          setError(''); // Clear the compression message
+          
+          // Provide feedback about compression
+          const originalSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+          
+          console.log(`Additional Image ${index + 1} compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB`);
+          if (originalSizeMB > compressedSizeMB) {
+            const savingsPercentage = (100 - (compressedFile.size / selectedFile.size * 100)).toFixed(0);
+            alert(`Additional Image ${index + 1} optimized! Reduced by ${savingsPercentage}% (from ${originalSizeMB}MB to ${compressedSizeMB}MB)`);
+          }
+        })
+        .catch(err => {
+          console.error(`Error compressing additional image ${index + 1}:`, err);
+          // Fallback to original file
+          const newAdditionalImages = [...additionalImages];
+          newAdditionalImages[index] = selectedFile;
+          setAdditionalImages(newAdditionalImages);
+          setError('');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  };
+
   const handleDiscard = () => {
     alert("We are working on the discard functionality. Please stay tuned!");
   };
@@ -481,6 +530,13 @@ const StandardPost = () => {
       formData.append('contentType', 'standard');
       formData.append('featuredImage', file); // Featured Image
       
+      // Add additional images if they exist
+      additionalImages.forEach((image, index) => {
+        if (image) {
+          formData.append(`additionalImage${index + 1}`, image);
+        }
+      });
+      
       // Add state and district from journalist profile
       // If journalist has assigned state/district, use those values
       const stateToUse = journalistProfile?.assignState || state;
@@ -502,7 +558,14 @@ const StandardPost = () => {
           name: file.name,
           size: `${(file.size / 1024).toFixed(2)} KB`,
           type: file.type
-        }
+        },
+        additionalImages: additionalImages.map((img, index) => 
+          img ? {
+            name: img.name,
+            size: `${(img.size / 1024).toFixed(2)} KB`,
+            type: img.type
+          } : null
+        ).filter(Boolean)
       });
       
       // Try main endpoint
@@ -654,6 +717,7 @@ const StandardPost = () => {
       setTitle('');
       setContent('');
       setFile(null);
+      setAdditionalImages([null, null, null, null, null]);
       setCategory('');
       if (!journalistProfile?.assignState) setState('');
       if (!journalistProfile?.assignDistrict) setDistrict('');
@@ -1008,6 +1072,76 @@ const StandardPost = () => {
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
+              </div>
+            </div>
+
+            {/* Additional Images */}
+            <div style={{ marginBottom: '24px' }}>
+              <label 
+                style={{ 
+                  display: 'block', 
+                  fontWeight: '500', 
+                  marginBottom: '12px', 
+                  fontSize: '16px',
+                  color: '#111827'
+                }}
+              >
+                Additional Images <span style={{ color: '#6b7280', fontSize: '12px' }}>(Optional - Max 50MB each)</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                {additionalImages.map((image, index) => (
+                  <div key={index} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '6px',
+                    overflow: 'hidden'
+                  }}>
+                    <label 
+                      htmlFor={`additionalFileInput${index}`}
+                      style={{
+                        padding: '8px 14px',
+                        backgroundColor: '#f9fafb',
+                        borderRight: '1px solid #e5e7eb',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        minWidth: '100px'
+                      }}
+                    >
+                      Image {index + 1}
+                    </label>
+                    <span style={{ padding: '8px 14px', color: '#6b7280', fontSize: '14px', flex: 1 }}>
+                      {image ? image.name : 'no file selected'}
+                    </span>
+                    {image && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newAdditionalImages = [...additionalImages];
+                          newAdditionalImages[index] = null;
+                          setAdditionalImages(newAdditionalImages);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <input
+                      id={`additionalFileInput${index}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleAdditionalImageChange(index, e)}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

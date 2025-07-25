@@ -22,9 +22,88 @@ const API_BASE_URL = 'https://api.newztok.in';
 // Configure axios with increased timeout
 axios.defaults.timeout = 120000; // 2 minutes timeout
 
+// Add this compression utility function
+const compressImage = (file, maxSizeMB = 5) => {
+  return new Promise((resolve, reject) => {
+    // If file is already smaller than target size, don't compress
+    if (file.size / 1024 / 1024 <= maxSizeMB) {
+      console.log('File already smaller than target size, skipping compression');
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        // Calculate dimensions to maintain aspect ratio
+        let { width, height } = img;
+        let maxWidth = 1920;
+        let maxHeight = 1080;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round(height * maxWidth / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round(width * maxHeight / height);
+            height = maxHeight;
+          }
+        }
+
+        // Create canvas for compression
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Start with higher quality
+        let quality = 0.9;
+        const tryCompress = () => {
+          console.log(`Trying compression with quality: ${quality}`);
+          canvas.toBlob((blob) => {
+            // Create a new file from the blob
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: new Date().getTime()
+            });
+
+            console.log(`Original size: ${(file.size / 1024 / 1024).toFixed(2)}MB, Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+            
+            // If still too large and we can compress more, retry with lower quality
+            if (compressedFile.size / 1024 / 1024 > maxSizeMB && quality > 0.5) {
+              quality -= 0.1;
+              tryCompress();
+            } else {
+              resolve(compressedFile);
+            }
+          }, 'image/jpeg', quality);
+        };
+
+        tryCompress();
+      };
+      img.onerror = (error) => {
+        reject(error);
+      };
+    };
+    reader.onerror = (error) => {
+      reject(error);
+    };
+  });
+};
+
 const StandardPost = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
+  
+  // Debug log to ensure component is rendering
+  console.log('Editor StandardPost - additionalImages state:', additionalImages);
   const [content, setContent]= useState('');
   const [category, setCategory] = useState(''); 
   const [state, setState] = useState('');
@@ -293,18 +372,107 @@ const StandardPost = () => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      // Check file size (limit to 50MB)
+      // Check if file is too large (over 50MB)
       if (selectedFile.size > 50 * 1024 * 1024) {
         setError('File size exceeds 50MB. Please select a smaller image.');
         return;
       }
       
-      setFile(selectedFile);
+      // Set loading state
+      setLoading(true);
+      
+      // Show compressing message
+      setError('Compressing image for better upload performance. Please wait...');
+      
+      // Compress the image before setting it (target 5MB)
+      compressImage(selectedFile, 5)
+        .then(compressedFile => {
+          setFile(compressedFile);
+          setError(''); // Clear the compression message
+          
+          // Provide feedback about compression
+          const originalSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+          
+          console.log(`Image compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB`);
+          if (originalSizeMB > compressedSizeMB) {
+            const savingsPercentage = (100 - (compressedFile.size / selectedFile.size * 100)).toFixed(0);
+            alert(`Image optimized! Reduced by ${savingsPercentage}% (from ${originalSizeMB}MB to ${compressedSizeMB}MB)`);
+          }
+        })
+        .catch(err => {
+          console.error('Error compressing image:', err);
+          // Fallback to original file
+          setFile(selectedFile);
+          setError('');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  };
+
+  const handleAdditionalImageChange = (index, e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      
+      // Check if file is too large (over 50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        setError(`Additional Image ${index + 1}: File size exceeds 50MB. Please select a smaller image.`);
+        return;
+      }
+      
+      // Set loading state
+      setLoading(true);
+      
+      // Show compressing message
+      setError(`Compressing additional image ${index + 1} for better upload performance. Please wait...`);
+      
+      // Compress the image before setting it (target 5MB)
+      compressImage(selectedFile, 5)
+        .then(compressedFile => {
+          const newAdditionalImages = [...additionalImages];
+          newAdditionalImages[index] = compressedFile;
+          setAdditionalImages(newAdditionalImages);
+          setError(''); // Clear the compression message
+          
+          // Provide feedback about compression
+          const originalSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+          
+          console.log(`Additional Image ${index + 1} compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB`);
+          if (originalSizeMB > compressedSizeMB) {
+            const savingsPercentage = (100 - (compressedFile.size / selectedFile.size * 100)).toFixed(0);
+            alert(`Additional Image ${index + 1} optimized! Reduced by ${savingsPercentage}% (from ${originalSizeMB}MB to ${compressedSizeMB}MB)`);
+          }
+        })
+        .catch(err => {
+          console.error(`Error compressing additional image ${index + 1}:`, err);
+          // Fallback to original file
+          const newAdditionalImages = [...additionalImages];
+          newAdditionalImages[index] = selectedFile;
+          setAdditionalImages(newAdditionalImages);
+          setError('');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     }
   };
 
   const handleDiscard = () => {
-    alert("We are working on the discard functionality. Please stay tuned!");
+    setTitle('');
+    setContent('');
+    setFile(null);
+    setAdditionalImages([null, null, null, null, null]);
+    setCategory('');
+    setState('');
+    setDistrict('');
+    if (editorRef.current) {
+      editorRef.current.setContent('');
+    }
+    setError('');
+    setSuccess('');
   };
 
   const handleSaveDraft = () => {
@@ -372,6 +540,13 @@ const StandardPost = () => {
       formData.append('contentType', 'standard');
       formData.append('featuredImage', file); // Featured Image
       
+      // Add additional images if they exist
+      additionalImages.forEach((image, index) => {
+        if (image) {
+          formData.append(`additionalImage${index + 1}`, image);
+        }
+      });
+      
       // Add optional fields only if they exist
       if (state && state.trim() !== '') formData.append('state', state); // STATE
       if (district && district.trim() !== '') formData.append('district', district); // DISTRICT
@@ -388,7 +563,14 @@ const StandardPost = () => {
           name: file.name,
           size: `${(file.size / 1024).toFixed(2)} KB`,
           type: file.type
-        }
+        },
+        additionalImages: additionalImages.map((img, index) => 
+          img ? {
+            name: img.name,
+            size: `${(img.size / 1024).toFixed(2)} KB`,
+            type: img.type
+          } : null
+        ).filter(Boolean)
       });
       
       // Try main endpoint
@@ -865,6 +1047,76 @@ const StandardPost = () => {
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
+              </div>
+            </div>
+
+            {/* Additional Images */}
+            <div style={{ marginBottom: '24px', border: '2px solid #f59e0b', padding: '16px', borderRadius: '8px', backgroundColor: '#fffbeb' }}>
+              <label 
+                style={{ 
+                  display: 'block', 
+                  fontWeight: '600', 
+                  marginBottom: '12px', 
+                  fontSize: '18px',
+                  color: '#111827'
+                }}
+              >
+                📸 Additional Images <span style={{ color: '#6b7280', fontSize: '14px' }}>(Optional - Max 50MB each)</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                {additionalImages.map((image, index) => (
+                  <div key={index} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '6px',
+                    overflow: 'hidden'
+                  }}>
+                    <label 
+                      htmlFor={`additionalFileInput${index}`}
+                      style={{
+                        padding: '8px 14px',
+                        backgroundColor: '#f9fafb',
+                        borderRight: '1px solid #e5e7eb',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        minWidth: '100px'
+                      }}
+                    >
+                      Image {index + 1}
+                    </label>
+                    <span style={{ padding: '8px 14px', color: '#6b7280', fontSize: '14px', flex: 1 }}>
+                      {image ? image.name : 'no file selected'}
+                    </span>
+                    {image && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newAdditionalImages = [...additionalImages];
+                          newAdditionalImages[index] = null;
+                          setAdditionalImages(newAdditionalImages);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <input
+                      id={`additionalFileInput${index}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleAdditionalImageChange(index, e)}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
