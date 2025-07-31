@@ -573,7 +573,7 @@ const TrendingNewsDetails = () => {
       const title = newsData?.title || 'NewzTok Trending Article';
       
       // Create the proper news URL with the ID
-      const newsUrl = `https://newztok.in/trending/${id}`;
+      const newsUrl = `https://newztok.com/trending/${id}`;
       
       // First check if the newsData has a featuredImage and ensure it's properly formatted
       let mediaToShare = '';

@@ -381,7 +381,7 @@ const SportsNewsDetails = () => {
       const title = newsData?.title || 'NewzTok Sports Article';
       
       // Create the proper news URL with the ID
-      const newsUrl = `https://newztok.in/sports/${id}`;
+      const newsUrl = `https://newztok.com/sports/${id}`;
       
       // First check if the newsData has a featuredImage and ensure it's properly formatted
       let mediaToShare = '';
