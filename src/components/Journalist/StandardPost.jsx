@@ -978,11 +978,11 @@ const StandardPost = () => {
           padding: '16px', 
           borderRadius: '6px',
           marginBottom: '20px',
-          maxHeight: error.length > 200 ? '200px' : 'auto',
-          overflow: error.length > 200 ? 'auto' : 'visible'
+          maxHeight: typeof error === 'string' && error.length > 200 ? '200px' : 'auto',
+          overflow: typeof error === 'string' && error.length > 200 ? 'auto' : 'visible'
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '16px' }}>
-            {error.includes('Server Error') ? 'Server Error Detected' : 'Error'}
+            {typeof error === 'string' && error.includes('Server Error') ? 'Server Error Detected' : 'Error'}
           </div>
           <div style={{ 
             whiteSpace: 'pre-line',  // Preserves line breaks in the error message
@@ -990,7 +990,7 @@ const StandardPost = () => {
           }}>
             {error}
           </div>
-          {error.includes('Server Error') && (
+          {typeof error === 'string' && error.includes('Server Error') && (
             <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
               <button 
                 onClick={handleSubmit}
