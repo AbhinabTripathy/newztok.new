@@ -231,6 +231,14 @@ const InternationalNewsDetails = () => {
         if (response.data) {
           const articleData = response.data.data || response.data;
           console.log("Setting international news data:", articleData);
+          
+          // Log additional images specifically
+          if (articleData.additionalImage && Array.isArray(articleData.additionalImage)) {
+            console.log("Additional images found in international news:", articleData.additionalImage.length, articleData.additionalImage);
+          } else {
+            console.log("No additional images found in international news or not an array:", articleData.additionalImage);
+          }
+          
           setNewsData(articleData);
           
           // If comments are included in the API response
@@ -378,7 +386,7 @@ const InternationalNewsDetails = () => {
       const title = newsData?.title || 'NewzTok International Article';
       
       // Create the proper news URL with the ID
-      const newsUrl = `https://newztok.com/international/${id}`;
+      const newsUrl = `https://newztok.in/international/${id}`;
       
       // First check if the newsData has a featuredImage and ensure it's properly formatted
       let mediaToShare = '';
@@ -445,9 +453,9 @@ const InternationalNewsDetails = () => {
         );
       }
       
-      // Construct WhatsApp share URL with news URL and app download links
-      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:* ${newsUrl}\n\n📱 *Download NewzTok App:*\n• Android: https://play.google.com/store/apps/details?id=com.newztok\n• iOS: https://apps.apple.com/in/app/newztok/id6746141322`);
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
+      // Construct WhatsApp share URL with just the news URL to leverage meta tags
+      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:*`);
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText} ${encodeURIComponent(newsUrl)}`;
       
       // Open WhatsApp in a new tab
       window.open(whatsappUrl, '_blank');
@@ -695,6 +703,52 @@ const InternationalNewsDetails = () => {
       type: 'image',
       url: 'https://placehold.co/800x400/000000/FFFFFF/png?text=International+News+Image'
     };
+  };
+
+  // Function to process content and insert additional images after h2 tags
+  const processContentWithAdditionalImages = (content, additionalImages) => {
+    if (!content || !additionalImages || !Array.isArray(additionalImages) || additionalImages.length === 0) {
+      return content;
+    }
+
+    // Split content by h2 tags while preserving the tags
+    const h2Regex = /<h2[^>]*>.*?<\/h2>/gi;
+    const parts = content.split(h2Regex);
+    const h2Tags = content.match(h2Regex) || [];
+
+    let processedContent = '';
+    let imageIndex = 0;
+
+    // Process each part
+    for (let i = 0; i < parts.length; i++) {
+      processedContent += parts[i];
+      
+      // Add h2 tag if it exists
+      if (h2Tags[i]) {
+        processedContent += h2Tags[i];
+        
+        // Add additional image after h2 tag if available
+        if (imageIndex < additionalImages.length) {
+          const imageUrl = additionalImages[imageIndex].startsWith('http') 
+            ? additionalImages[imageIndex]
+            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+          
+          processedContent += `
+            <div style="margin: 20px 0; text-align: center;">
+              <img 
+                src="${imageUrl}" 
+                alt="Additional Image ${imageIndex + 1}" 
+                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+              />
+            </div>
+          `;
+          imageIndex++;
+        }
+      }
+    }
+
+    return processedContent;
   };
 
   // Capitalize text
@@ -1139,7 +1193,10 @@ const InternationalNewsDetails = () => {
         <Box 
           sx={{ lineHeight: 1.8, mb: 4 }}
           dangerouslySetInnerHTML={{ 
-            __html: newsData.content || "No content available for this international article." 
+            __html: processContentWithAdditionalImages(
+              newsData.content || "No content available for this international article.",
+              newsData.additionalImage
+            )
           }}
         />
         

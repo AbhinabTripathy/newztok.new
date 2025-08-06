@@ -100,7 +100,7 @@ const compressImage = (file, maxSizeMB = 5) => {
 const StandardPost = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
-  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null]);
   
   // Debug log to ensure component is rendering
   console.log('Editor StandardPost - additionalImages state:', additionalImages);
@@ -464,7 +464,7 @@ const StandardPost = () => {
     setTitle('');
     setContent('');
     setFile(null);
-    setAdditionalImages([null, null, null, null, null]);
+    setAdditionalImages([null, null, null, null]);
     setCategory('');
     setState('');
     setDistrict('');
@@ -534,24 +534,36 @@ const StandardPost = () => {
       const formData = new FormData();
       
       // Add required fields
-      formData.append('title', title.trim()); // Post Title/Headline
-      formData.append('content', actualContent.trim()); // Content
-      formData.append('category', category); // CATEGORY
+      formData.append('title', title.trim());
+      formData.append('content', actualContent.trim());
+      formData.append('category', category);
       formData.append('contentType', 'standard');
-      formData.append('featuredImage', file); // Featured Image
+      formData.append('featuredImage', file);
       
-      // Add additional images if they exist
-      additionalImages.forEach((image, index) => {
-        if (image) {
-          formData.append(`additionalImage${index + 1}`, image);
-        }
-      });
+      // Add additional images as an array (matching the successful API response format)
+      const validAdditionalImages = additionalImages.filter(image => image !== null);
+      if (validAdditionalImages.length > 0) {
+        validAdditionalImages.forEach((image, index) => {
+          formData.append('additionalImage', image); // Use same key for all additional images
+        });
+      }
       
       // Add optional fields only if they exist
-      if (state && state.trim() !== '') formData.append('state', state); // STATE
-      if (district && district.trim() !== '') formData.append('district', district); // DISTRICT
+      if (state && state.trim() !== '') formData.append('state', state);
+      if (district && district.trim() !== '') formData.append('district', district);
       
-      // Show the submission data in the console
+      // Enhanced debugging - log all FormData entries
+      console.log('=== FormData Debug Info ===');
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`${key}: ${value}`);
+        }
+      }
+      
+      // Show the submission data summary
       console.log('Submitting post with the following data:', {
         title: title.trim(),
         content: `${actualContent.trim().substring(0, 50)}${actualContent.length > 50 ? '...' : ''}`,
@@ -564,148 +576,32 @@ const StandardPost = () => {
           size: `${(file.size / 1024).toFixed(2)} KB`,
           type: file.type
         },
-        additionalImages: additionalImages.map((img, index) => 
-          img ? {
-            name: img.name,
-            size: `${(img.size / 1024).toFixed(2)} KB`,
-            type: img.type
-          } : null
-        ).filter(Boolean)
+        additionalImagesCount: validAdditionalImages.length,
+        additionalImages: validAdditionalImages.map((img, index) => ({
+          name: img.name,
+          size: `${(img.size / 1024).toFixed(2)} KB`,
+          type: img.type
+        }))
       });
       
-      // Try main endpoint
-      let response;
-      try {
-        console.log('Attempting main endpoint: /api/news/create');
-        // Make the API request
-        response = await axios({
-          method: 'post',
-          url: `${API_BASE_URL}/api/news/create`,
-          data: formData,
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percentCompleted);
-            console.log(`Upload progress: ${percentCompleted}%`);
-          }
-        });
-      } catch (mainEndpointErr) {
-        console.error('Main endpoint failed:', mainEndpointErr);
-        
-        // Check for authentication errors (401/403)
-        if (mainEndpointErr.response && (mainEndpointErr.response.status === 401 || mainEndpointErr.response.status === 403)) {
-          console.log('Token is invalid or expired');
-          setShowSessionExpiredDialog(true);
-          return;
+      // Make the API request to the main endpoint
+      console.log('Attempting to create post via: /api/news/create');
+      console.log('Token being used:', token ? `${token.substring(0, 20)}...` : 'No token');
+      
+      const response = await axios({
+        method: 'post',
+        url: `${API_BASE_URL}/api/news/create`,
+        data: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type for FormData, let axios handle it
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+          console.log(`Upload progress: ${percentCompleted}%`);
         }
-        
-        // Try to extract detailed error information
-        let errorDetail = '';
-        if (mainEndpointErr.response && mainEndpointErr.response.data) {
-          try {
-            errorDetail = typeof mainEndpointErr.response.data === 'object' 
-              ? JSON.stringify(mainEndpointErr.response.data) 
-              : mainEndpointErr.response.data;
-            console.log('Server error details:', errorDetail);
-          } catch (e) {
-            console.error('Could not parse error details');
-          }
-        }
-        
-        // Try alternative endpoint #1 - /api/posts
-        try {
-          console.log('Trying alternative endpoint #1: /api/posts');
-          response = await axios({
-            method: 'post',
-            url: `${API_BASE_URL}/api/posts`,
-            data: formData,
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-        } catch (alt1Err) {
-          console.error('Alternative endpoint #1 failed:', alt1Err);
-          
-          // Check for authentication errors
-          if (alt1Err.response && (alt1Err.response.status === 401 || alt1Err.response.status === 403)) {
-            console.log('Token is invalid or expired');
-            setShowSessionExpiredDialog(true);
-            return;
-          }
-          
-          // Try alternative endpoint #2 - /api/content
-          try {
-            console.log('Trying alternative endpoint #2: /api/content');
-            response = await axios({
-              method: 'post',
-              url: `${API_BASE_URL}/api/content`,
-              data: formData,
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'multipart/form-data'
-              }
-            });
-          } catch (alt2Err) {
-            console.error('Alternative endpoint #2 failed:', alt2Err);
-            
-            // Check for authentication errors
-            if (alt2Err.response && (alt2Err.response.status === 401 || alt2Err.response.status === 403)) {
-              console.log('Token is invalid or expired');
-              setShowSessionExpiredDialog(true);
-              return;
-            }
-            
-            // Last resort - Try alternative endpoint #3 with minimal JSON
-            try {
-              console.log('Last resort - using /api/v2/news with JSON only');
-              
-              // Create minimal JSON without problematic fields
-              const minimalData = {
-                title: title.trim(),
-                content: actualContent.trim(),
-                category,
-                status: 'pending'
-              };
-              
-              response = await axios.post(
-                `${API_BASE_URL}/api/v2/news`,
-                minimalData,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                  }
-                }
-              );
-            } catch (lastResortErr) {
-              console.error('All endpoints failed:', lastResortErr);
-              
-              // Check for authentication errors
-              if (lastResortErr.response && (lastResortErr.response.status === 401 || lastResortErr.response.status === 403)) {
-                console.log('Token is invalid or expired');
-                setShowSessionExpiredDialog(true);
-                return;
-              }
-              
-              // Let the main error handler deal with this
-              throw {
-                message: 'Server unavailable: All API endpoints failed',
-                originalErrors: {
-                  main: mainEndpointErr?.message,
-                  alt1: alt1Err?.message,
-                  alt2: alt2Err?.message,
-                  lastResort: lastResortErr?.message
-                },
-                serverDetail: errorDetail
-              };
-            }
-          }
-        }
-      }
+      });
       
       console.log('Post created successfully:', response.data);
       
@@ -739,7 +635,12 @@ const StandardPost = () => {
       }, 2000);
       
     } catch (err) {
-      console.error('API request failed:', err);
+      console.error('=== API Error Debug Info ===');
+      console.error('Full error object:', err);
+      console.error('Error message:', err.message);
+      console.error('Error response status:', err.response?.status);
+      console.error('Error response data:', err.response?.data);
+      console.error('Error response headers:', err.response?.headers);
       
       // Check for authentication errors
       if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -748,22 +649,17 @@ const StandardPost = () => {
         return;
       }
       
-      // Enhanced error reporting with more details
-      if (err.originalErrors) {
-        const errorDetails = Object.entries(err.originalErrors)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('; ');
-        
-        setError(`All API endpoints failed. Please contact the admin with this error: ${err.message}. 
-          Try again later or use another browser. 
-          Server details: ${err.serverDetail || 'Unknown'}`);
-      } else if (err.response && err.response.data) {
-        // Try to extract message from various response formats
-        let message = err.message;
+      // Extract error message from response
+      let message = err.message;
+      let serverMessage = '';
+      
+      if (err.response && err.response.data) {
         try {
-          if (typeof err.response.data === 'object' && err.response.data.message) {
-            message = err.response.data.message;
+          if (typeof err.response.data === 'object') {
+            serverMessage = err.response.data.message || err.response.data.error || JSON.stringify(err.response.data);
+            message = err.response.data.message || err.message;
           } else if (typeof err.response.data === 'string') {
+            serverMessage = err.response.data;
             const match = err.response.data.match(/"message"\s*:\s*"([^"]+)"/);
             if (match && match[1]) {
               message = match[1];
@@ -772,28 +668,30 @@ const StandardPost = () => {
         } catch (e) {
           console.error('Error parsing error response:', e);
         }
-        
-        setError(`Server error: ${message}. Status: ${err.response.status}`);
-      } else {
-        setError(`Error: ${err.message}`);
       }
       
-      // Display a more user-friendly error 
-      setError(<div>
-        <div style={{fontWeight: 'bold', marginBottom: '8px'}}>Unable to create post</div>
-        <div>The server is currently experiencing issues. This appears to be a server-side database problem.</div>
-        <div style={{marginTop: '8px'}}>
-          <strong>Please try:</strong>
-          <ul style={{marginLeft: '20px', marginTop: '4px'}}>
-            <li>Using the "Save Draft" option instead</li>
-            <li>Contact your technical support team</li>
-            <li>Try again in a few hours after the database issues are resolved</li>
-          </ul>
+      console.log('Parsed error message:', message);
+      console.log('Server message:', serverMessage);
+      
+      // Display user-friendly error message
+      setError(
+        <div>
+          <div style={{fontWeight: 'bold', marginBottom: '8px'}}>Unable to create post</div>
+          <div style={{marginBottom: '8px'}}>
+            {err.response && err.response.status === 413 
+              ? 'The images are too large. Please compress your images and try again.'
+              : err.response && err.response.status === 400
+              ? 'Bad request - there may be an issue with the data format or required fields.'
+              : 'There was an error creating your post. Please try again.'
+            }
+          </div>
+          <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
+            <div>Status: {err.response ? err.response.status : 'No response'}</div>
+            <div>Error: {message}</div>
+            {serverMessage && <div>Server details: {serverMessage}</div>}
+          </div>
         </div>
-        <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
-          Technical details: {err.message || 'Unknown error'}
-        </div>
-      </div>);
+      );
     } finally {
       setLoading(false);
     }
@@ -1061,7 +959,7 @@ const StandardPost = () => {
                   color: '#111827'
                 }}
               >
-                📸 Additional Images <span style={{ color: '#6b7280', fontSize: '14px' }}>(Optional - Max 50MB each)</span>
+                📸 Additional Images (Max 4) <span style={{ color: '#6b7280', fontSize: '14px' }}>(Optional - Max 50MB each)</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                 {additionalImages.map((image, index) => (

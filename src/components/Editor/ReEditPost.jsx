@@ -136,6 +136,11 @@ const ReEditPost = () => {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [editorKey, setEditorKey] = useState(Date.now());
   const [showSessionExpiredDialog, setShowSessionExpiredDialog] = useState(false);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null]);
+  
+  // Debug logging for Additional Images
+  console.log('ReEditPost - additionalImages state:', additionalImages);
+  console.log('ReEditPost - isVideoContent:', isVideoContent);
 
   // Check for token expiration on component mount
   useEffect(() => {
@@ -569,6 +574,34 @@ const ReEditPost = () => {
     setVideoUploadMethod('youtube');
   };
 
+  // Function to handle additional image changes
+  const handleAdditionalImageChange = (index, e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      
+      // Check if file is too large (over 50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        alert(`Additional Image ${index + 1}: File size exceeds 50MB. Please select a smaller image.`);
+        return;
+      }
+      
+      const newAdditionalImages = [...additionalImages];
+      newAdditionalImages[index] = selectedFile;
+      setAdditionalImages(newAdditionalImages);
+      
+      // Provide feedback about the selected file
+      const sizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+      console.log(`Additional Image ${index + 1} selected: ${selectedFile.name} (${sizeMB}MB)`);
+    }
+  };
+
+  // Function to remove additional image
+  const removeAdditionalImage = (index) => {
+    const newAdditionalImages = [...additionalImages];
+    newAdditionalImages[index] = null;
+    setAdditionalImages(newAdditionalImages);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <EditorHeader />
@@ -905,6 +938,136 @@ const ReEditPost = () => {
                         }}
                         placeholder={isVideoContent ? "Enter video title" : "Enter post title"}
                       />
+                    </div>
+
+                    {/* Featured Image Section */}
+                    {!isVideoContent && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <label 
+                          htmlFor="featuredImage"
+                          style={{ 
+                            display: 'block', 
+                            fontWeight: '500', 
+                            marginBottom: '8px', 
+                            fontSize: '16px',
+                            color: '#111827'
+                          }}
+                        >
+                          Featured Image
+                        </label>
+                        <div style={{ 
+                          padding: '12px', 
+                          border: '2px dashed #d1d5db', 
+                          borderRadius: '6px',
+                          backgroundColor: '#f9fafb',
+                          textAlign: 'center',
+                          color: '#6b7280'
+                        }}>
+                          {newsData.featuredImage ? (
+                            <div>
+                              <img 
+                                src={getImageUrl(newsData.featuredImage)} 
+                                alt="Featured" 
+                                style={{ 
+                                  maxWidth: '200px', 
+                                  maxHeight: '150px', 
+                                  objectFit: 'cover',
+                                  borderRadius: '4px'
+                                }} 
+                              />
+                              <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                                Current featured image
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ padding: '20px' }}>
+                              <div style={{ fontSize: '16px', marginBottom: '4px' }}>No featured image set</div>
+                              <div style={{ fontSize: '14px' }}>Featured image can be updated from the main edit interface</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Additional Images Section - Frontend Only */}
+                    <div style={{ marginBottom: '24px', border: '2px solid #f59e0b', padding: '16px', borderRadius: '8px', backgroundColor: '#fffbeb' }}>
+                      <label 
+                        style={{ 
+                          display: 'block', 
+                          fontWeight: '600', 
+                          marginBottom: '12px', 
+                          fontSize: '18px',
+                          color: '#111827'
+                        }}
+                      >
+                        📸 Additional Images (Max 4) <span style={{ color: '#6b7280', fontSize: '14px' }}>(Frontend Only - Max 50MB each)</span>
+                      </label>
+                      {console.log('Additional Images section is rendering!')}
+                      <div style={{ 
+                        backgroundColor: '#ef4444', 
+                        color: 'white', 
+                        padding: '4px 8px', 
+                        borderRadius: '4px', 
+                        fontSize: '12px',
+                        marginBottom: '8px',
+                        display: 'inline-block'
+                      }}>
+                        DEBUG: Additional Images Section is Visible
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                        {additionalImages.map((image, index) => (
+                          <div key={index} style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            border: '1px solid #e5e7eb', 
+                            borderRadius: '6px',
+                            overflow: 'hidden'
+                          }}>
+                            <label 
+                              htmlFor={`additionalFileInput${index}`}
+                              style={{
+                                padding: '8px 14px',
+                                backgroundColor: '#f9fafb',
+                                borderRight: '1px solid #e5e7eb',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                minWidth: '100px'
+                              }}
+                            >
+                              Image {index + 1}
+                            </label>
+                            <span style={{ padding: '8px 14px', color: '#6b7280', fontSize: '14px', flex: 1 }}>
+                              {image ? image.name : 'no file selected'}
+                            </span>
+                            {image && (
+                              <button
+                                type="button"
+                                onClick={() => removeAdditionalImage(index)}
+                                style={{
+                                  padding: '8px 12px',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#b91c1c',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Remove
+                              </button>
+                            )}
+                            <input
+                              id={`additionalFileInput${index}`}
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleAdditionalImageChange(index, e)}
+                              style={{ display: 'none' }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>
+                        Note: Additional images are for frontend display only and will not be saved to the server.
+                      </div>
                     </div>
                     
                     {/* Post content */}

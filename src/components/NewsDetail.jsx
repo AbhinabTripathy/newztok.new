@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import AdComponent from './AdSenseAds';
 import {
   Box,
   Container,
@@ -319,8 +318,16 @@ const NewsDetail = () => {
             thumbnail: articleData.thumbnail,
             thumbnailUrl: articleData.thumbnailUrl,
             imageUrl: articleData.imageUrl,
-            featured_image: articleData.featured_image
+            featured_image: articleData.featured_image,
+            additionalImage: articleData.additionalImage
           });
+          
+          // Log additional images specifically
+          if (articleData.additionalImage && Array.isArray(articleData.additionalImage)) {
+            console.log("Additional images found:", articleData.additionalImage.length, articleData.additionalImage);
+          } else {
+            console.log("No additional images found or not an array:", articleData.additionalImage);
+          }
           
           // Ensure media properties are properly set
           if (articleData.youtubeUrl) {
@@ -529,7 +536,7 @@ const NewsDetail = () => {
       const title = newsData?.title || 'NewzTok Article';
       
       // Create the proper news URL with the ID
-      const newsUrl = `https://newztok.com/news/${id}`;
+      const newsUrl = `https://newztok.in/news/${id}`;
       
       // First check if the newsData has a featuredImage and ensure it's properly formatted
       let mediaToShare = '';
@@ -596,9 +603,9 @@ const NewsDetail = () => {
         );
       }
       
-      // Construct WhatsApp share URL with news URL and app download links
-      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:* ${newsUrl}\n\n📱 *Download NewzTok App:*\n• Android: https://play.google.com/store/apps/details?id=com.newztok\n• iOS: https://apps.apple.com/in/app/newztok/id6746141322`);
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}`;
+      // Construct WhatsApp share URL with just the news URL to leverage meta tags
+      const shareText = encodeURIComponent(`*${title}*\n\n${contentText}\n\n*Read More:*`);
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText} ${encodeURIComponent(newsUrl)}`;
       
       // Open WhatsApp in a new tab
       window.open(whatsappUrl, '_blank');
@@ -928,21 +935,39 @@ const NewsDetail = () => {
       }
     }
     
-    // Handle YouTube URLs
+    // Handle YouTube URLs including Shorts
     if (item.youtubeUrl) {
       console.log("Found YouTube URL:", item.youtubeUrl);
-      // Using the same robust regex pattern from HomeScreen.jsx
-      const youtubeRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-      const match = item.youtubeUrl.match(youtubeRegex);
-      
-      if (match && match[1]) {
-        const videoId = match[1];
-        console.log("Extracted YouTube video ID:", videoId);
-        return {
-          type: 'youtube',
-          url: item.youtubeUrl,
-          thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-        };
+      try {
+        const urlObj = new URL(item.youtubeUrl);
+        let videoId = null;
+
+        // Handle YouTube Shorts
+        if (urlObj.pathname.includes('/shorts/')) {
+          videoId = urlObj.pathname.split('/shorts/')[1].split('?')[0];
+          console.log("Extracted YouTube Shorts video ID:", videoId);
+        } else {
+          // Handle regular YouTube URLs
+          if (urlObj.searchParams.get('v')) {
+            videoId = urlObj.searchParams.get('v');
+          } else if (urlObj.hostname === 'youtu.be') {
+            videoId = urlObj.pathname.slice(1);
+          } else if (urlObj.pathname.includes('/embed/')) {
+            videoId = urlObj.pathname.split('/embed/')[1];
+          }
+        }
+
+        if (videoId) {
+          console.log("Extracted YouTube video ID:", videoId);
+          return {
+            type: 'youtube',
+            url: `https://www.youtube.com/embed/${videoId}`,
+            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            isShorts: urlObj.pathname.includes('/shorts/')
+          };
+        }
+      } catch (err) {
+        console.error('Error parsing YouTube URL:', err);
       }
     }
     
@@ -1067,6 +1092,52 @@ const NewsDetail = () => {
       console.error('Error downloading image with watermark:', error);
       alert('Failed to download image. Please try again.');
     }
+  };
+
+  // Function to process content and insert additional images after h2 tags
+  const processContentWithAdditionalImages = (content, additionalImages) => {
+    if (!content || !additionalImages || !Array.isArray(additionalImages) || additionalImages.length === 0) {
+      return content;
+    }
+
+    // Split content by h2 tags while preserving the tags
+    const h2Regex = /<h2[^>]*>.*?<\/h2>/gi;
+    const parts = content.split(h2Regex);
+    const h2Tags = content.match(h2Regex) || [];
+
+    let processedContent = '';
+    let imageIndex = 0;
+
+    // Process each part
+    for (let i = 0; i < parts.length; i++) {
+      processedContent += parts[i];
+      
+      // Add h2 tag if it exists
+      if (h2Tags[i]) {
+        processedContent += h2Tags[i];
+        
+        // Add additional image after h2 tag if available
+        if (imageIndex < additionalImages.length) {
+          const imageUrl = additionalImages[imageIndex].startsWith('http') 
+            ? additionalImages[imageIndex]
+            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+          
+          processedContent += `
+            <div style="margin: 20px 0; text-align: center;">
+              <img 
+                src="${imageUrl}" 
+                alt="Additional Image ${imageIndex + 1}" 
+                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+              />
+            </div>
+          `;
+          imageIndex++;
+        }
+      }
+    }
+
+    return processedContent;
   };
 
   // Capitalize text
@@ -1289,48 +1360,22 @@ const NewsDetail = () => {
                 }}
               />
             ) : mediaUrl.type === 'youtube' ? (
-              <>
-                <Box 
-                  component="img"
-                  src={mediaUrl.thumbnail || 'https://placehold.co/800x400/000000/FFFFFF/png?text=YouTube+Video'}
-                  alt={newsData.title}
+              <Box sx={{ position: 'relative', width: '100%', height: '500px' }}>
+                <Box
+                  component="iframe"
+                  src={mediaUrl.url}
+                  title={newsData.title}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
                   sx={{
                     width: '100%',
-                    maxHeight: '500px',
-                    objectFit: 'cover',
+                    height: '100%',
                     borderRadius: '8px',
-                    cursor: 'pointer',
+                    backgroundColor: '#000',
                   }}
-                  onClick={() => window.open(mediaUrl.url, '_blank')}
                 />
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '80px',
-                    height: '56px',
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      transform: 'translate(-50%, -50%) scale(1.05)',
-                    },
-                    transition: 'all 0.2s ease-in-out',
-                  }}
-                  onClick={() => window.open(mediaUrl.url, '_blank')}
-                >
-                  <svg height="34" width="48" viewBox="0 0 68 48">
-                    <path d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z" fill="#f00"></path>
-                    <path d="M 45,24 27,14 27,34" fill="#fff"></path>
-                  </svg>
-                </Box>
-              </>
+              </Box>
             ) : (
               <Box 
                 component="img"
@@ -1437,15 +1482,12 @@ const NewsDetail = () => {
         <Box 
           sx={{ lineHeight: 1.8, mb: 4 }}
           dangerouslySetInnerHTML={{ 
-            __html: newsData.content || "No content available for this article." 
+            __html: processContentWithAdditionalImages(
+              newsData.content || "No content available for this article.",
+              newsData.additionalImage
+            )
           }}
         />
-        
-        {/* In-Article Ad */}
-        <AdComponent type="in-article" adSlot="1234567890" />
-        
-        {/* Display Ad before Comments */}
-        <AdComponent type="display" adSlot="1234567891" />
         
         {/* Comments Section */}
         <Box sx={{ py: 3, bgcolor: '#f9f9f9', borderRadius: 2, mt: 4 }}>

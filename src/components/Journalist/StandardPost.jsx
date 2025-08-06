@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
+import TinyMCEEditor from '../common/TinyMCEEditor';
 import axios from 'axios';
 import { FiChevronDown } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
@@ -94,7 +95,10 @@ const compressImage = (file, maxSizeMB = 5) => {
 const StandardPost = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
-  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null]);
+  
+  // Debug log to ensure component is rendering
+  console.log('Journalist StandardPost - additionalImages state:', additionalImages);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [state, setState] = useState('');
@@ -465,7 +469,19 @@ const StandardPost = () => {
   };
 
   const handleDiscard = () => {
-    alert("We are working on the discard functionality. Please stay tuned!");
+    setTitle('');
+    setContent('');
+    setFile(null);
+    setAdditionalImages([null, null, null, null]);
+    setCategory('');
+    // Only reset state/district if they're not pre-assigned by journalist profile
+    if (!journalistProfile?.assignState) setState('');
+    if (!journalistProfile?.assignDistrict) setDistrict('');
+    if (editorRef.current) {
+      editorRef.current.setContent('');
+    }
+    setError('');
+    setSuccess('');
   };
 
   const handleSubmit = async (e) => {
@@ -530,12 +546,13 @@ const StandardPost = () => {
       formData.append('contentType', 'standard');
       formData.append('featuredImage', file); // Featured Image
       
-      // Add additional images if they exist
-      additionalImages.forEach((image, index) => {
-        if (image) {
-          formData.append(`additionalImage${index + 1}`, image);
-        }
-      });
+      // Add additional images as an array (matching the successful API response format)
+      const validAdditionalImages = additionalImages.filter(image => image !== null);
+      if (validAdditionalImages.length > 0) {
+        validAdditionalImages.forEach((image, index) => {
+          formData.append('additionalImage', image); // Use same key for all additional images
+        });
+      }
       
       // Add state and district from journalist profile
       // If journalist has assigned state/district, use those values
@@ -545,6 +562,17 @@ const StandardPost = () => {
       // Add state and district to formData
       if (stateToUse && stateToUse.trim() !== '') formData.append('state', stateToUse);
       if (districtToUse && districtToUse.trim() !== '') formData.append('district', districtToUse);
+      
+      // Enhanced debugging - log all FormData entries
+      console.log('=== FormData Debug Info ===');
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`${key}: ${value}`);
+        }
+      }
       
       // Show the submission data in the console
       console.log('Submitting post with the following data:', {
@@ -559,13 +587,12 @@ const StandardPost = () => {
           size: `${(file.size / 1024).toFixed(2)} KB`,
           type: file.type
         },
-        additionalImages: additionalImages.map((img, index) => 
-          img ? {
-            name: img.name,
-            size: `${(img.size / 1024).toFixed(2)} KB`,
-            type: img.type
-          } : null
-        ).filter(Boolean)
+        additionalImagesCount: validAdditionalImages.length,
+        additionalImages: validAdditionalImages.map((img, index) => ({
+          name: img.name,
+          size: `${(img.size / 1024).toFixed(2)} KB`,
+          type: img.type
+        }))
       });
       
       // Try main endpoint
@@ -711,13 +738,27 @@ const StandardPost = () => {
       setError('');
       
       // Show success message
-      alert('🎉 Success! Your post has been submitted for review.');
+      setSuccess(
+        <div>
+          <div style={{fontWeight: 'bold', fontSize: '16px', marginBottom: '6px'}}>
+            🎉 Success! Your post has been submitted for review.
+          </div>
+          <div style={{marginBottom: '4px'}}>
+            Title: <strong>{title}</strong>
+          </div>
+          <div style={{marginBottom: '4px'}}>
+            Category: <strong>{category}</strong>
+            {stateToUse ? <span>, State: <strong>{stateToUse}</strong></span> : ''}
+            {districtToUse ? <span>, District: <strong>{districtToUse}</strong></span> : ''}
+          </div>
+        </div>
+      );
       
       // Clear form directly instead of calling handleDiscard
       setTitle('');
       setContent('');
       setFile(null);
-      setAdditionalImages([null, null, null, null, null]);
+      setAdditionalImages([null, null, null, null]);
       setCategory('');
       if (!journalistProfile?.assignState) setState('');
       if (!journalistProfile?.assignDistrict) setDistrict('');
@@ -984,6 +1025,18 @@ const StandardPost = () => {
         </div>
       )}
 
+      {success && (
+        <div style={{ 
+          backgroundColor: '#ecfdf5', 
+          color: '#065f46', 
+          padding: '12px', 
+          borderRadius: '6px',
+          marginBottom: '20px'
+        }}>
+          {success}
+        </div>
+      )}
+
       {uploadProgress > 0 && uploadProgress < 100 && (
         <div style={{ 
           backgroundColor: '#f0fdf4', 
@@ -1076,17 +1129,17 @@ const StandardPost = () => {
             </div>
 
             {/* Additional Images */}
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: '24px', border: '2px solid #f59e0b', padding: '16px', borderRadius: '8px', backgroundColor: '#fffbeb' }}>
               <label 
                 style={{ 
                   display: 'block', 
-                  fontWeight: '500', 
+                  fontWeight: '600', 
                   marginBottom: '12px', 
-                  fontSize: '16px',
+                  fontSize: '18px',
                   color: '#111827'
                 }}
               >
-                Additional Images <span style={{ color: '#6b7280', fontSize: '12px' }}>(Optional - Max 50MB each)</span>
+                📸 Additional Images (Max 4) <span style={{ color: '#6b7280', fontSize: '14px' }}>(Optional - Max 50MB each)</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                 {additionalImages.map((image, index) => (
@@ -1159,23 +1212,11 @@ const StandardPost = () => {
               >
                 Content
               </label>
-              <Editor
-                apiKey="omxjaluaxpgfpa6xkfadimoprrirfmhozsrtpb3o1uimu4c5"
-                onInit={(evt, editor) => {
-                  editorRef.current = editor;
-                }}
-                initialValue=""
+              <TinyMCEEditor
+                editorRef={editorRef}
                 value={content}
                 onEditorChange={handleEditorChange}
-                init={{
-                  height: 300,
-                  menubar: true,
-                  plugins: [
-                    'anchor', 'autolink', 'charmap', 'codesample', 'emoticons', 'image', 'link', 'lists', 'media', 'searchreplace', 'table', 'visualblocks', 'wordcount',
-                  ],
-                  toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
-                  content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                }}
+                height={300}
               />
             </div>
 
