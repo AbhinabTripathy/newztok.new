@@ -15,82 +15,10 @@ import {
 
 const API_BASE_URL = 'https://api.newztok.in';
 
-axios.defaults.timeout = 120000;
+// Configure axios with increased timeout for large uploads
+axios.defaults.timeout = 300000; // 5 minutes timeout for file uploads
 
-// Add this compression utility function
-const compressImage = (file, maxSizeMB = 5) => {
-  return new Promise((resolve, reject) => {
-    // If file is already smaller than target size, don't compress
-    if (file.size / 1024 / 1024 <= maxSizeMB) {
-      console.log('File already smaller than target size, skipping compression');
-      resolve(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        // Calculate dimensions to maintain aspect ratio
-        let { width, height } = img;
-        let maxWidth = 1920;
-        let maxHeight = 1080;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round(height * maxWidth / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round(width * maxHeight / height);
-            height = maxHeight;
-          }
-        }
-
-        // Create canvas for compression
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Start with higher quality
-        let quality = 0.9;
-        const tryCompress = () => {
-          console.log(`Trying compression with quality: ${quality}`);
-          canvas.toBlob((blob) => {
-            // Create a new file from the blob
-            const compressedFile = new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: new Date().getTime()
-            });
-
-            console.log(`Original size: ${(file.size / 1024 / 1024).toFixed(2)}MB, Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-            
-            // If still too large and we can compress more, retry with lower quality
-            if (compressedFile.size / 1024 / 1024 > maxSizeMB && quality > 0.5) {
-              quality -= 0.1;
-              tryCompress();
-            } else {
-              resolve(compressedFile);
-            }
-          }, 'image/jpeg', quality);
-        };
-
-        tryCompress();
-      };
-      img.onerror = (error) => {
-        reject(error);
-      };
-    };
-    reader.onerror = (error) => {
-      reject(error);
-    };
-  });
-};
+// Image compression removed - files are uploaded as-is to the server
 
 const StandardPost = () => {
   const [title, setTitle] = useState('');
@@ -380,43 +308,17 @@ const StandardPost = () => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      // Check if file is too large (over 50MB)
-      if (selectedFile.size > 50 * 1024 * 1024) {
-        setError('File size exceeds 50MB. Please select a smaller image.');
-        return;
+      // Simply set the file without compression
+      setFile(selectedFile);
+      setError(''); // Clear any previous errors
+      
+      const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+      console.log(`Featured image selected: ${selectedFile.name} (${fileSizeMB}MB)`);
+      
+      // Show file size to user for awareness
+      if (selectedFile.size > 10 * 1024 * 1024) { // > 10MB
+        console.warn(`Large file selected: ${fileSizeMB}MB - this may cause upload issues if server has size limits`);
       }
-      
-      // Set loading state
-      setLoading(true);
-      
-      // Show compressing message
-      setError('Compressing image for better upload performance. Please wait...');
-      
-      // Compress the image before setting it (target 5MB)
-      compressImage(selectedFile, 5)
-        .then(compressedFile => {
-          setFile(compressedFile);
-          setError(''); // Clear the compression message
-          
-          // Provide feedback about compression
-          const originalSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
-          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-          
-          console.log(`Image compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB`);
-          if (originalSizeMB > compressedSizeMB) {
-            const savingsPercentage = (100 - (compressedFile.size / selectedFile.size * 100)).toFixed(0);
-            alert(`Image optimized! Reduced by ${savingsPercentage}% (from ${originalSizeMB}MB to ${compressedSizeMB}MB)`);
-          }
-        })
-        .catch(err => {
-          console.error('Error compressing image:', err);
-          // Fallback to original file
-          setFile(selectedFile);
-          setError('');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
     }
   };
 
@@ -424,47 +326,19 @@ const StandardPost = () => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      // Check if file is too large (over 50MB)
-      if (selectedFile.size > 50 * 1024 * 1024) {
-        setError(`Additional Image ${index + 1}: File size exceeds 50MB. Please select a smaller image.`);
-        return;
+      // Simply set the file without compression
+      const newAdditionalImages = [...additionalImages];
+      newAdditionalImages[index] = selectedFile;
+      setAdditionalImages(newAdditionalImages);
+      setError(''); // Clear any previous errors
+      
+      const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+      console.log(`Additional Image ${index + 1} selected: ${selectedFile.name} (${fileSizeMB}MB)`);
+      
+      // Show file size warning for large files
+      if (selectedFile.size > 10 * 1024 * 1024) { // > 10MB
+        console.warn(`Large additional image selected: ${fileSizeMB}MB - this may cause upload issues if server has size limits`);
       }
-      
-      // Set loading state
-      setLoading(true);
-      
-      // Show compressing message
-      setError(`Compressing additional image ${index + 1} for better upload performance. Please wait...`);
-      
-      // Compress the image before setting it (target 5MB)
-      compressImage(selectedFile, 5)
-        .then(compressedFile => {
-          const newAdditionalImages = [...additionalImages];
-          newAdditionalImages[index] = compressedFile;
-          setAdditionalImages(newAdditionalImages);
-          setError(''); // Clear the compression message
-          
-          // Provide feedback about compression
-          const originalSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
-          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-          
-          console.log(`Additional Image ${index + 1} compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB`);
-          if (originalSizeMB > compressedSizeMB) {
-            const savingsPercentage = (100 - (compressedFile.size / selectedFile.size * 100)).toFixed(0);
-            alert(`Additional Image ${index + 1} optimized! Reduced by ${savingsPercentage}% (from ${originalSizeMB}MB to ${compressedSizeMB}MB)`);
-          }
-        })
-        .catch(err => {
-          console.error(`Error compressing additional image ${index + 1}:`, err);
-          // Fallback to original file
-          const newAdditionalImages = [...additionalImages];
-          newAdditionalImages[index] = selectedFile;
-          setAdditionalImages(newAdditionalImages);
-          setError('');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
     }
   };
 
@@ -531,10 +405,7 @@ const StandardPost = () => {
       setLoading(true);
       setError('');
       
-      // Add retry functionality
-      const maxRetries = 3;
-      let retryCount = 0;
-      let success = false;
+      // Add retry functionality (variables declared later in retry logic)
       
       // Create FormData to send the post with all data including the image
       const formData = new FormData();
@@ -595,26 +466,64 @@ const StandardPost = () => {
         }))
       });
       
-      // Try main endpoint
+      // Make the API request to the main endpoint with retry mechanism
+      const apiUrl = `${API_BASE_URL}/api/news/create`;
+      console.log('Attempting to create post via:', apiUrl);
+      console.log('Token being used:', token ? `${token.substring(0, 20)}...` : 'No token');
+      
       let response;
-      try {
-        console.log('Attempting main endpoint: /api/news/create');
-        // Make the API request
-        response = await axios({
-          method: 'post',
-          url: `${API_BASE_URL}/api/news/create`,
-          data: formData,
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percentCompleted);
-            console.log(`Upload progress: ${percentCompleted}%`);
+      let attempt = 1;
+      const maxRetries = 3;
+      
+      while (attempt <= maxRetries) {
+        try {
+          console.log(`Upload attempt ${attempt}/${maxRetries}`);
+          
+          response = await axios({
+            method: 'post',
+            url: apiUrl,
+            data: formData,
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            },
+            timeout: 300000, // 5 minutes per request
+            onUploadProgress: (progressEvent) => {
+              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percentCompleted);
+              console.log(`Upload progress (attempt ${attempt}): ${percentCompleted}%`);
+            }
+          });
+          
+          // If we get here, the request was successful
+          break;
+          
+        } catch (retryError) {
+          console.log(`Attempt ${attempt} failed:`, retryError.message);
+          
+          // Check if it's a timeout or network error that we can retry (NOT 413 file size errors)
+          if ((retryError.code === 'ECONNABORTED' || retryError.message.includes('timeout') || 
+               retryError.response?.status === 504 || retryError.response?.status === 502) && 
+              retryError.response?.status !== 413 && attempt < maxRetries) {
+            
+            console.log(`Retrying in 2 seconds... (${maxRetries - attempt} attempts left)`);
+            setError(`Upload attempt ${attempt} failed. Retrying... (${maxRetries - attempt} attempts left)`);
+            
+            // Wait 2 seconds before retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempt++;
+            continue;
+          } else {
+            // Not a retryable error or max retries reached
+            throw retryError;
           }
-        });
-      } catch (mainEndpointErr) {
+        }
+      }
+      
+      // If all retry attempts failed, try the alternative endpoints as fallback
+      if (!response) {
+        console.log('All retry attempts failed, trying alternative endpoints...');
+        let mainEndpointErr = new Error('All retry attempts exhausted');
         console.error('Main endpoint failed:', mainEndpointErr);
         
         // Check if the error is due to an expired token
@@ -772,7 +681,77 @@ const StandardPost = () => {
       }, 2000);
       
     } catch (err) {
-      console.error('API request failed:', err);
+      console.error('=== API Error Debug Info ===');
+      console.error('Full error object:', err);
+      console.error('Error message:', err.message);
+      console.error('Error response status:', err.response?.status);
+      console.error('Error response data:', err.response?.data);
+      console.error('Error response headers:', err.response?.headers);
+      
+      // Check for file too large errors (413)
+      if (err.response?.status === 413) {
+        console.log('File too large error detected');
+        setError(
+          <div>
+            <div style={{fontWeight: 'bold', marginBottom: '8px'}}>📁 File Too Large</div>
+            <div style={{marginBottom: '8px'}}>
+              The server rejected the upload because the files are too large.
+            </div>
+            <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
+              <div>• Try using smaller image files</div>
+              <div>• Upload fewer additional images at once</div>
+              <div>• The server has a maximum file size limit</div>
+              <div>• Consider resizing images before uploading</div>
+            </div>
+          </div>
+        );
+        setLoading(false);
+        setUploadProgress(0);
+        return;
+      }
+      
+      // Check for timeout errors
+      if (err.response?.status === 504 || err.message.includes('timeout') || err.code === 'ECONNABORTED') {
+        console.log('Timeout error detected');
+        setError(
+          <div>
+            <div style={{fontWeight: 'bold', marginBottom: '8px'}}>⏱️ Upload Timeout</div>
+            <div style={{marginBottom: '8px'}}>
+              The upload took too long and timed out after multiple attempts. This usually happens with large files.
+            </div>
+            <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
+              <div>• Try using smaller image files</div>
+              <div>• Consider uploading fewer additional images at once</div>
+              <div>• Check your internet connection speed</div>
+              <div>• The server might be experiencing high load</div>
+            </div>
+          </div>
+        );
+        setLoading(false);
+        setUploadProgress(0);
+        return;
+      }
+      
+      // Check for CORS errors
+      if (err.message === 'Network Error' && !err.response) {
+        console.log('CORS or Network Error detected');
+        setError(
+          <div>
+            <div style={{fontWeight: 'bold', marginBottom: '8px'}}>Connection Error</div>
+            <div style={{marginBottom: '8px'}}>
+              Unable to connect to the server. This might be a network problem.
+            </div>
+            <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
+              <div>• Check your internet connection</div>
+              <div>• The server might be temporarily unavailable</div>
+              <div>• Try again in a few minutes</div>
+            </div>
+          </div>
+        );
+        setLoading(false);
+        setUploadProgress(0);
+        return;
+      }
       
       // Check for session expiration
       if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -978,11 +957,11 @@ const StandardPost = () => {
           padding: '16px', 
           borderRadius: '6px',
           marginBottom: '20px',
-          maxHeight: typeof error === 'string' && error.length > 200 ? '200px' : 'auto',
-          overflow: typeof error === 'string' && error.length > 200 ? 'auto' : 'visible'
+          maxHeight: error.length > 200 ? '200px' : 'auto',
+          overflow: error.length > 200 ? 'auto' : 'visible'
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '16px' }}>
-            {typeof error === 'string' && error.includes('Server Error') ? 'Server Error Detected' : 'Error'}
+            {error.includes('Server Error') ? 'Server Error Detected' : 'Error'}
           </div>
           <div style={{ 
             whiteSpace: 'pre-line',  // Preserves line breaks in the error message
@@ -990,7 +969,7 @@ const StandardPost = () => {
           }}>
             {error}
           </div>
-          {typeof error === 'string' && error.includes('Server Error') && (
+          {error.includes('Server Error') && (
             <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
               <button 
                 onClick={handleSubmit}
@@ -1094,7 +1073,7 @@ const StandardPost = () => {
                   color: '#111827'
                 }}
               >
-                Featured Image <span style={{ color: '#6b7280', fontSize: '12px' }}>(Max 50MB)</span>
+                Featured Image <span style={{ color: '#6b7280', fontSize: '12px' }}>(JPG, PNG, WebP, GIF, BMP, SVG)</span>
               </label>
               <div style={{ 
                 display: 'flex', 
@@ -1121,7 +1100,7 @@ const StandardPost = () => {
                 <input
                   id="fileInput"
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/svg+xml"
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
@@ -1139,7 +1118,7 @@ const StandardPost = () => {
                   color: '#111827'
                 }}
               >
-                📸 Additional Images (Max 4) <span style={{ color: '#6b7280', fontSize: '14px' }}>(Optional - Max 50MB each)</span>
+                📸 Additional Images (Max 4) <span style={{ color: '#6b7280', fontSize: '14px' }}></span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                 {additionalImages.map((image, index) => (
@@ -1189,7 +1168,7 @@ const StandardPost = () => {
                     <input
                       id={`additionalFileInput${index}`}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/svg+xml"
                       onChange={(e) => handleAdditionalImageChange(index, e)}
                       style={{ display: 'none' }}
                     />
@@ -1220,54 +1199,6 @@ const StandardPost = () => {
               />
             </div>
 
-            {/* Category Dropdown */}
-            <div style={{ marginBottom: '24px' }}>
-              <label 
-                htmlFor="category"
-                style={{ 
-                  display: 'block', 
-                  fontWeight: '500', 
-                  marginBottom: '8px', 
-                  fontSize: '14px',
-                  color: '#374151',
-                  textTransform: 'uppercase'
-                }}
-              >
-                CATEGORY
-              </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  id="category"
-                  value={category}
-                  onChange={handleCategoryChange}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    appearance: 'none',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    backgroundColor: 'white',
-                    fontSize: '14px'
-                  }}
-                >
-                  <option value="">---------</option>
-                  <option value="national">राष्ट्रीय | National</option>
-                  <option value="international">अंतरराष्ट्रीय | International</option>
-                  <option value="sports">खेल | Sports</option>
-                  <option value="entertainment">मनोरंजन | Entertainment</option>
-                </select>
-                <FiChevronDown 
-                  style={{ 
-                    position: 'absolute', 
-                    right: '10px', 
-                    top: '50%', 
-                    transform: 'translateY(-50%)', 
-                    color: '#6b7280',
-                    pointerEvents: 'none'
-                  }} 
-                />
-              </div>
-            </div>
           </form>
         </div>
         
@@ -1377,6 +1308,55 @@ const StandardPost = () => {
                       {district.hindi} | {district.english}
                     </option>
                   ))}
+                </select>
+                <FiChevronDown 
+                  style={{ 
+                    position: 'absolute', 
+                    right: '10px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)', 
+                    color: '#6b7280',
+                    pointerEvents: 'none'
+                  }} 
+                />
+              </div>
+            </div>
+
+            {/* Category Dropdown */}
+            <div style={{ marginBottom: '16px' }}>
+              <label 
+                htmlFor="category"
+                style={{ 
+                  display: 'block', 
+                  fontWeight: '500', 
+                  marginBottom: '8px', 
+                  fontSize: '14px',
+                  color: '#374151',
+                  textTransform: 'uppercase'
+                }}
+              >
+                CATEGORY
+              </label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  id="category"
+                  value={category}
+                  onChange={handleCategoryChange}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    appearance: 'none',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    backgroundColor: 'white',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">---------</option>
+                  <option value="national">राष्ट्रीय | National</option>
+                  <option value="international">अंतरराष्ट्रीय | International</option>
+                  <option value="sports">खेल | Sports</option>
+                  <option value="entertainment">मनोरंजन | Entertainment</option>
                 </select>
                 <FiChevronDown 
                   style={{ 
