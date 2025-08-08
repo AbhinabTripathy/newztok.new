@@ -598,7 +598,8 @@ const Sports = () => {
   const convertNewsToVideoFormat = (news) => {
     const hasVideo = news.hasVideo || news.video || news.videoPath || 
                     (news.featuredImage && news.featuredImage.includes('/uploads/videos/video-')) ||
-                    (news.image && news.image.includes('/uploads/videos/video-'));
+                    (news.image && news.image.includes('/uploads/videos/video-')) ||
+                    (news.additionalImage && news.additionalImage.includes('/uploads/videos/video-'));
     
     return {
       image: getImageUrl(news),
@@ -621,26 +622,54 @@ const Sports = () => {
 
   // Get image URL with proper handling
   const getImageUrl = (item) => {
+    // Log for debugging
+    console.log(`Getting image URL for item with title "${item.title}":`, {
+      id: item.id,
+      featuredImage: item.featuredImage,
+      image: item.image,
+      additionalImage: item.additionalImage,
+      youtubeUrl: item.youtubeUrl
+    });
+    
+    // If item has YouTube URL, use YouTube thumbnail
     if (item.youtubeUrl) {
       const youtubeRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
       const match = item.youtubeUrl.match(youtubeRegex);
       if (match && match[1]) {
+        console.log(`Using YouTube thumbnail for "${item.title}": ${match[1]}`);
         return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
       }
     }
     
-    if (item.images && item.images.length > 0) {
+    // If item has images array with content
+    if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+      console.log(`Using images array for "${item.title}": ${item.images[0]}`);
       return item.images[0];
     }
     
-    if (item.featuredImage && !item.featuredImage.includes('/uploads/videos/video-')) {
-      return item.featuredImage.startsWith('http') ? item.featuredImage : `${baseUrl}${item.featuredImage}`;
+    // If item has featuredImage and it's not a video
+    if (item.featuredImage && typeof item.featuredImage === 'string' && !item.featuredImage.includes('/uploads/videos/video-')) {
+      const imageUrl = item.featuredImage.startsWith('http') ? item.featuredImage : `${baseUrl}${item.featuredImage}`;
+      console.log(`Using featuredImage for "${item.title}": ${imageUrl}`);
+      return imageUrl;
     }
     
-    if (item.image && !item.image.includes('/uploads/videos/video-')) {
-      return item.image.startsWith('http') ? item.image : `${baseUrl}${item.image}`;
+    // If item has image property and it's not a video
+    if (item.image && typeof item.image === 'string' && !item.image.includes('/uploads/videos/video-')) {
+      const imageUrl = item.image.startsWith('http') ? item.image : `${baseUrl}${item.image}`;
+      console.log(`Using image for "${item.title}": ${imageUrl}`);
+      return imageUrl;
     }
     
+    // If item has additionalImage property and it's not a video
+    if (item.additionalImage && typeof item.additionalImage === 'string' && !item.additionalImage.includes('/uploads/videos/video-')) {
+      const imageUrl = item.additionalImage.startsWith('http') ? item.additionalImage : `${baseUrl}${item.additionalImage}`;
+      console.log(`Using additionalImage for "${item.title}": ${imageUrl}`);
+      return imageUrl;
+    }
+    
+    // Fallback to placeholder
+    console.log(`No image found for "${item.title}", using placeholder`);
     return 'https://placehold.co/800x400/2E7D32/FFFFFF/png?text=Sports+News';
   };
 

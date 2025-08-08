@@ -58,14 +58,19 @@ const NationalNews = () => {
       
       // Preload images
       fetchedNews.forEach(item => {
-        if (item.featuredImage || item.image) {
+        if (item.featuredImage || item.image || item.additionalImage) {
           const getFullImageUrl = (imagePath) => {
-            if (!imagePath) return null;
+            if (!imagePath || typeof imagePath !== 'string') return null;
             if (imagePath.startsWith('http')) return imagePath;
             return `https://api.newztok.in${imagePath}`;
           };
           
-          const imageUrl = getFullImageUrl(item.featuredImage || item.image);
+          // Get the first valid string image path
+          const validImagePath = (typeof item.featuredImage === 'string' && item.featuredImage) ||
+                                 (typeof item.image === 'string' && item.image) ||
+                                 (typeof item.additionalImage === 'string' && item.additionalImage);
+          
+          const imageUrl = getFullImageUrl(validImagePath);
           if (imageUrl) {
             const img = new Image();
             img.src = imageUrl;
@@ -107,10 +112,67 @@ const NationalNews = () => {
   };
 
   // Helper function to get full image URL
-  const getFullImageUrl = (imagePath) => {
-    if (!imagePath) return 'https://via.placeholder.com/400x300?text=No+Image';
-    if (imagePath.startsWith('http')) return imagePath;
-    return `${baseUrl}${imagePath}`;
+  const getFullImageUrl = (imagePath, item = null) => {
+    // Log for debugging if item is provided
+    if (item) {
+      console.log(`Getting image URL for item with title "${item.title}":`, {
+        id: item.id,
+        featuredImage: item.featuredImage,
+        image: item.image,
+        additionalImage: item.additionalImage,
+        youtubeUrl: item.youtubeUrl
+      });
+    }
+    
+    // If item has YouTube URL, use YouTube thumbnail
+    if (item && item.youtubeUrl) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = item.youtubeUrl.match(regExp);
+      if (match && match[2].length === 11) {
+        const videoId = match[2];
+        console.log(`Using YouTube thumbnail for "${item.title}": ${videoId}`);
+        return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      }
+    }
+    
+    // If item has images array with content
+    if (item && item.images && item.images.length > 0) {
+      console.log(`Using images[0] from array for "${item.title}": ${item.images[0]}`);
+      return item.images[0];
+    }
+    
+    // Check featuredImage first
+    if (item && item.featuredImage && typeof item.featuredImage === 'string') {
+      const featuredImageUrl = item.featuredImage.startsWith('http') ? item.featuredImage : `${baseUrl}${item.featuredImage}`;
+      console.log(`Using featuredImage for "${item.title}": ${featuredImageUrl}`);
+      return featuredImageUrl;
+    }
+    
+    // Check image second
+    if (item && item.image && typeof item.image === 'string') {
+      const imageUrl = item.image.startsWith('http') ? item.image : `${baseUrl}${item.image}`;
+      console.log(`Using image for "${item.title}": ${imageUrl}`);
+      return imageUrl;
+    }
+    
+    // Check additionalImage third
+    if (item && item.additionalImage && typeof item.additionalImage === 'string') {
+      const additionalImageUrl = item.additionalImage.startsWith('http') ? item.additionalImage : `${baseUrl}${item.additionalImage}`;
+      console.log(`Using additionalImage for "${item.title}": ${additionalImageUrl}`);
+      return additionalImageUrl;
+    }
+    
+    // Legacy support for direct imagePath parameter
+    if (imagePath && typeof imagePath === 'string') {
+      if (imagePath.startsWith('http')) return imagePath;
+      return `${baseUrl}${imagePath}`;
+    }
+    
+    // Fallback
+    if (item) {
+      console.log(`No image found for "${item.title}", using placeholder`);
+    }
+    return 'https://via.placeholder.com/400x300?text=No+Image';
   };
 
   // Helper function to check if item has video
@@ -119,7 +181,8 @@ const NationalNews = () => {
       item.video || 
       item.videoPath || 
       (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) ||
-      (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-'));
+      (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) ||
+      (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-'));
   };
 
   // Helper function to get video URL
@@ -128,22 +191,28 @@ const NationalNews = () => {
         return item.video;
       }
       
-      if (item.videoPath) {
+      if (item.videoPath && typeof item.videoPath === 'string') {
         return item.videoPath.startsWith('http') 
           ? item.videoPath 
           : `${baseUrl}${item.videoPath}`;
       }
       
-      if (item.featuredImage && item.featuredImage.includes('/uploads/videos/video-')) {
+      if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
         return item.featuredImage.startsWith('http') 
           ? item.featuredImage 
           : `${baseUrl}${item.featuredImage}`;
       }
       
-      if (item.image && item.image.includes('/uploads/videos/video-')) {
+      if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
         return item.image.startsWith('http') 
           ? item.image 
           : `${baseUrl}${item.image}`;
+      }
+      
+      if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
+        return item.additionalImage.startsWith('http') 
+          ? item.additionalImage 
+          : `${baseUrl}${item.additionalImage}`;
       }
       
       return null;
@@ -651,7 +720,7 @@ const NationalNews = () => {
     }
     
     return newsToUse.map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       timestamp: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       time: new Date(item.createdAt || item.updatedAt || item.publishedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -666,7 +735,7 @@ const NationalNews = () => {
       [...recentItems, ...recentItems, ...recentItems].slice(0, 20) : recentItems;
     
     return extendedItems.map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       date: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       item: item
@@ -682,7 +751,7 @@ const NationalNews = () => {
       [...mixedNews, ...mixedNews, ...mixedNews].slice(0, 20) : mixedNews.slice(0, 20);
     
     return extendedItems.map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       date: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       item: item
@@ -691,7 +760,7 @@ const NationalNews = () => {
 
   const convertToBottomCards = (items) => {
     return items.map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       item: item
     }));
@@ -699,7 +768,7 @@ const NationalNews = () => {
 
   const convertToMostSharedCards = (items) => {
     return items.slice(0, 10).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       alt: item.title || 'Most Shared',
       text: item.title || 'No title available',
       item: item

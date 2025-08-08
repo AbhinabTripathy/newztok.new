@@ -102,6 +102,11 @@ const NationalNewsDetails = () => {
         imageUrl = newsData.thumbnailUrl.startsWith('http') 
           ? newsData.thumbnailUrl 
           : `${baseURL}${newsData.thumbnailUrl.startsWith('/') ? '' : '/'}${newsData.thumbnailUrl}`;
+      } else if (newsData.additionalImage && Array.isArray(newsData.additionalImage) && newsData.additionalImage.length > 0) {
+        const firstAdditionalImage = newsData.additionalImage[0];
+        imageUrl = firstAdditionalImage.startsWith('http') 
+          ? firstAdditionalImage 
+          : `${baseURL}${firstAdditionalImage.startsWith('/') ? '' : '/'}${firstAdditionalImage}`;
       }
       
       // Update meta tags for better sharing
@@ -420,15 +425,28 @@ const NationalNewsDetails = () => {
       }
       // Last resort - try other image fields
       else {
-        // Try common image field names
-        const imageFields = ['imageUrl', 'thumbnailUrl', 'thumbnail', 'image'];
+        // Try common image field names including additionalImage
+        const imageFields = ['imageUrl', 'thumbnailUrl', 'thumbnail', 'image', 'additionalImage'];
         
         for (const field of imageFields) {
-          if (newsData[field] && typeof newsData[field] === 'string') {
-            mediaToShare = newsData[field].startsWith('http') 
-              ? newsData[field] 
-              : `${baseURL}${newsData[field].startsWith('/') ? '' : '/'}${newsData[field]}`;
-            break;
+          if (newsData[field]) {
+            // Handle string values
+            if (typeof newsData[field] === 'string') {
+              mediaToShare = newsData[field].startsWith('http') 
+                ? newsData[field] 
+                : `${baseURL}${newsData[field].startsWith('/') ? '' : '/'}${newsData[field]}`;
+              break;
+            }
+            // Handle array values (for additionalImage)
+            else if (Array.isArray(newsData[field]) && newsData[field].length > 0) {
+              const firstImage = newsData[field][0];
+              if (typeof firstImage === 'string') {
+                mediaToShare = firstImage.startsWith('http') 
+                  ? firstImage 
+                  : `${baseURL}${firstImage.startsWith('/') ? '' : '/'}${firstImage}`;
+                break;
+              }
+            }
           }
         }
       }
@@ -608,6 +626,16 @@ const NationalNewsDetails = () => {
       };
     }
     
+    if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes(videoPattern)) {
+      console.log("Found video in additionalImage:", item.additionalImage);
+      return {
+        type: 'video',
+        url: item.additionalImage.startsWith('http') 
+          ? item.additionalImage 
+          : `${baseURL}${item.additionalImage.startsWith('/') ? '' : '/'}${item.additionalImage}`
+      };
+    }
+    
     // Handle video property
     if (item.video) {
       console.log("Found video property:", item.video);
@@ -644,7 +672,7 @@ const NationalNewsDetails = () => {
     }
     
     // Handle images with various property names
-    const possibleImageProps = ['featuredImage', 'image', 'images', 'thumbnail', 'thumbnailUrl', 'imageUrl', 'featured_image'];
+    const possibleImageProps = ['featuredImage', 'image', 'additionalImage', 'images', 'thumbnail', 'thumbnailUrl', 'imageUrl', 'featured_image'];
     
     for (const prop of possibleImageProps) {
       if (item[prop]) {
@@ -705,33 +733,120 @@ const NationalNewsDetails = () => {
     };
   };
 
-  // Function to process content and insert additional images after h2 tags
+  // Function to process content and insert additional images after h2 or h3 tags
   const processContentWithAdditionalImages = (content, additionalImages) => {
     if (!content || !additionalImages || !Array.isArray(additionalImages) || additionalImages.length === 0) {
       return content;
     }
 
-    // Split content by h2 tags while preserving the tags
-    const h2Regex = /<h2[^>]*>.*?<\/h2>/gi;
-    const parts = content.split(h2Regex);
-    const h2Tags = content.match(h2Regex) || [];
+    console.log("Processing national content with additional images:", {
+      contentLength: content.length,
+      additionalImagesCount: additionalImages.length,
+      additionalImages: additionalImages
+    });
 
+    // Try h2 tags first
+    let h2Regex = /<h2[^>]*>.*?<\/h2>/gi;
+    let parts = content.split(h2Regex);
+    let headingTags = content.match(h2Regex) || [];
+    
+    // If no h2 tags found, try h3 tags
+    if (headingTags.length === 0) {
+      console.log("No h2 tags found, trying h3 tags");
+      h2Regex = /<h3[^>]*>.*?<\/h3>/gi;
+      parts = content.split(h2Regex);
+      headingTags = content.match(h2Regex) || [];
+    }
+    
+    // If no h2 or h3 tags found, try h1 tags
+    if (headingTags.length === 0) {
+      console.log("No h3 tags found, trying h1 tags");
+      h2Regex = /<h1[^>]*>.*?<\/h1>/gi;
+      parts = content.split(h2Regex);
+      headingTags = content.match(h2Regex) || [];
+    }
+    
+    // If no heading tags found, split content by paragraphs and insert images between them
+    if (headingTags.length === 0) {
+      console.log("No heading tags found, inserting images between paragraphs");
+      const paragraphs = content.split('</p>');
+      let processedContent = '';
+      let imageIndex = 0;
+      
+      for (let i = 0; i < paragraphs.length; i++) {
+        // Add the paragraph back
+        processedContent += paragraphs[i];
+        if (i < paragraphs.length - 1) {
+          processedContent += '</p>';
+        }
+        
+        // Insert image after every 2-3 paragraphs
+        if (imageIndex < additionalImages.length && (i + 1) % 3 === 0 && i < paragraphs.length - 1) {
+          const imageUrl = additionalImages[imageIndex].startsWith('http') 
+            ? additionalImages[imageIndex]
+            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+          
+          console.log("Inserting additional image:", imageUrl);
+          
+          processedContent += `
+            <div style="margin: 20px 0; text-align: center;">
+              <img 
+                src="${imageUrl}" 
+                alt="Additional Image ${imageIndex + 1}" 
+                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+              />
+            </div>
+          `;
+          imageIndex++;
+        }
+      }
+      
+      // If there are still unused images, add them at the end
+      while (imageIndex < additionalImages.length) {
+        const imageUrl = additionalImages[imageIndex].startsWith('http') 
+          ? additionalImages[imageIndex]
+          : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+        
+        console.log("Adding remaining additional image at end:", imageUrl);
+        
+        processedContent += `
+          <div style="margin: 20px 0; text-align: center;">
+            <img 
+              src="${imageUrl}" 
+              alt="Additional Image ${imageIndex + 1}" 
+              style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+              onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+            />
+          </div>
+        `;
+        imageIndex++;
+      }
+      
+      return processedContent;
+    }
+
+    // Process content with heading tags
     let processedContent = '';
     let imageIndex = 0;
+
+    console.log("Found", headingTags.length, "heading tags, processing...");
 
     // Process each part
     for (let i = 0; i < parts.length; i++) {
       processedContent += parts[i];
       
-      // Add h2 tag if it exists
-      if (h2Tags[i]) {
-        processedContent += h2Tags[i];
+      // Add heading tag if it exists
+      if (headingTags[i]) {
+        processedContent += headingTags[i];
         
-        // Add additional image after h2 tag if available
+        // Add additional image after heading tag if available
         if (imageIndex < additionalImages.length) {
           const imageUrl = additionalImages[imageIndex].startsWith('http') 
             ? additionalImages[imageIndex]
             : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+          
+          console.log("Inserting additional image after heading:", imageUrl);
           
           processedContent += `
             <div style="margin: 20px 0; text-align: center;">
@@ -747,7 +862,29 @@ const NationalNewsDetails = () => {
         }
       }
     }
+    
+    // If there are still unused images, add them at the end
+    while (imageIndex < additionalImages.length) {
+      const imageUrl = additionalImages[imageIndex].startsWith('http') 
+        ? additionalImages[imageIndex]
+        : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+      
+      console.log("Adding remaining additional image at end:", imageUrl);
+      
+      processedContent += `
+        <div style="margin: 20px 0; text-align: center;">
+          <img 
+            src="${imageUrl}" 
+            alt="Additional Image ${imageIndex + 1}" 
+            style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+            onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+          />
+        </div>
+      `;
+      imageIndex++;
+    }
 
+    console.log("Processed national content length:", processedContent.length, "Images inserted:", imageIndex);
     return processedContent;
   };
 

@@ -295,10 +295,89 @@ const StateNewsPage = () => {
   }, []);
 
   // Helper functions
-  const getFullImageUrl = (imagePath) => {
-    if (!imagePath) return 'https://via.placeholder.com/400x300?text=No+Image';
-    if (imagePath.startsWith('http')) return imagePath;
-    return `${baseUrl}${imagePath}`;
+  const getFullImageUrl = (imagePath, item = null) => {
+    // Log for debugging if item is provided
+    if (item) {
+      console.log(`Getting image URL for item with title "${item.title}":`, {
+        id: item.id,
+        featuredImage: item.featuredImage,
+        image: item.image,
+        additionalImage: item.additionalImage,
+        youtubeUrl: item.youtubeUrl
+      });
+    }
+    
+    // If item has YouTube URL, use YouTube thumbnail
+    if (item && item.youtubeUrl) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = item.youtubeUrl.match(regExp);
+      if (match && match[2].length === 11) {
+        const videoId = match[2];
+        console.log(`Using YouTube thumbnail for "${item.title}": ${videoId}`);
+        return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      }
+    }
+    
+    // If item has images array with content
+    if (item && item.images && Array.isArray(item.images) && item.images.length > 0) {
+      console.log(`Using images array for "${item.title}": ${item.images[0]}`);
+      return item.images[0];
+    }
+    
+    // If item has featuredImage
+    if (item && item.featuredImage && typeof item.featuredImage === 'string') {
+      // Check if it's a full URL or just a path
+      if (item.featuredImage.startsWith('http')) {
+        console.log(`Using full featuredImage URL for "${item.title}": ${item.featuredImage}`);
+        return item.featuredImage;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.featuredImage}`;
+        console.log(`Using relative featuredImage with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
+    }
+    
+    // If item has image property
+    if (item && item.image && typeof item.image === 'string') {
+      // Check if it's a full URL or just a path
+      if (item.image.startsWith('http')) {
+        console.log(`Using full image URL for "${item.title}": ${item.image}`);
+        return item.image;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.image}`;
+        console.log(`Using relative image with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
+    }
+    
+    // If item has additionalImage property
+    if (item && item.additionalImage && typeof item.additionalImage === 'string') {
+      // Check if it's a full URL or just a path
+      if (item.additionalImage.startsWith('http')) {
+        console.log(`Using full additionalImage URL for "${item.title}": ${item.additionalImage}`);
+        return item.additionalImage;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.additionalImage}`;
+        console.log(`Using relative additionalImage with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
+    }
+    
+    // Fallback for direct image path (legacy support)
+    if (imagePath && typeof imagePath === 'string') {
+      if (imagePath.startsWith('http')) {
+        return imagePath;
+      } else {
+        return `${baseUrl}${imagePath}`;
+      }
+    }
+    
+    // Fallback to placeholder
+    console.log(item ? `No image found for "${item.title}", using placeholder` : 'No image found, using placeholder');
+    return 'https://via.placeholder.com/400x300?text=No+Image';
   };
 
   const capitalizeFirstLetter = (str) => {
@@ -311,7 +390,8 @@ const StateNewsPage = () => {
       item.video || 
       item.videoPath || 
       (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) ||
-      (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-'));
+      (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) ||
+      (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-'));
   };
 
   const getVideoUrl = (item) => {
@@ -319,22 +399,28 @@ const StateNewsPage = () => {
         return item.video;
       }
       
-      if (item.videoPath) {
+      if (item.videoPath && typeof item.videoPath === 'string') {
         return item.videoPath.startsWith('http') 
           ? item.videoPath 
           : `${baseUrl}${item.videoPath}`;
       }
       
-      if (item.featuredImage && item.featuredImage.includes('/uploads/videos/video-')) {
+      if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
         return item.featuredImage.startsWith('http') 
           ? item.featuredImage 
           : `${baseUrl}${item.featuredImage}`;
       }
       
-      if (item.image && item.image.includes('/uploads/videos/video-')) {
+      if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
         return item.image.startsWith('http') 
           ? item.image 
           : `${baseUrl}${item.image}`;
+      }
+      
+      if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
+        return item.additionalImage.startsWith('http') 
+          ? item.additionalImage 
+          : `${baseUrl}${item.additionalImage}`;
       }
       
       return null;
@@ -693,7 +779,7 @@ const StateNewsPage = () => {
   // Convert news data to required format
   const convertNewsToVideoFormat = (newsArray) => {
     return newsArray.slice(0, 5).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       timestamp: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       time: new Date(item.createdAt || item.updatedAt || item.publishedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -703,7 +789,7 @@ const StateNewsPage = () => {
 
   const convertNewsToTrendingFormat = (newsArray) => {
     return newsArray.slice(0, 10).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       date: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       item: item
@@ -712,7 +798,7 @@ const StateNewsPage = () => {
 
   const convertNewsToBottomCardsFormat = (newsArray) => {
     return newsArray.slice(0, 15).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image),
+      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
       title: item.title || 'No title available',
       item: item
     }));
@@ -935,7 +1021,7 @@ const StateNewsPage = () => {
                         {districtNews.slice(0, 2).map((news, idx) => (
                           <Box key={idx} sx={{ mb: 3, width: '100%', height: '480px' }}>
                             <NewsCard
-                              image={getFullImageUrl(news.featuredImage || news.image)}
+                              image={getFullImageUrl(news.featuredImage || news.image || news.additionalImage, news)}
                               title={news.title}
                               timestamp={formatDate(news.createdAt || news.updatedAt)}
                               isVideo={hasVideo(news)}
