@@ -80,6 +80,7 @@ function App() {
   const isSportsDetailPage = location.pathname.startsWith('/sports/') && location.pathname !== '/sports';
   const isPolicyPage = location.pathname === '/privacy-policy';
   const isTermsPage = location.pathname === '/terms-conditions';
+  const isAppAdsPage = location.pathname === '/app-ads.txt';
 
   // Define the activeTab state and its setter function
   const [activeTab, setActiveTab] = useState('');
@@ -123,6 +124,9 @@ function App() {
         {/* Privacy Policy and Terms & Conditions Routes - Without Header and Footer */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsAndConditions />} />
+        
+        {/* App Ads Route - Without Header and Footer */}
+        <Route path="/app-ads.txt" element={<div style={{fontFamily: 'monospace', whiteSpace: 'pre-wrap', padding: '20px'}}>google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0</div>} />
 
         {/* Profile Route - Without Header and Footer */}
         <Route path="/profile" element={<Profile />} />
@@ -153,7 +157,7 @@ function App() {
           path="/*"
           element={
             <>
-              {!isLoginPage && !isRegisterPage && !isJournalistPage && !isProfilePage && !isNewsDetailPage && !isTrendingDetailPage && !isInternationalDetailPage && !isNationalDetailPage && !isStateDetailPage && !isEntertainmentDetailPage && !isSportsDetailPage && !isPolicyPage && !isTermsPage && <Header />}
+              {!isLoginPage && !isRegisterPage && !isJournalistPage && !isProfilePage && !isNewsDetailPage && !isTrendingDetailPage && !isInternationalDetailPage && !isNationalDetailPage && !isStateDetailPage && !isEntertainmentDetailPage && !isSportsDetailPage && !isPolicyPage && !isTermsPage && !isAppAdsPage && <Header />}
               <Box component="main" sx={{ flexGrow: 1 }}>
                 <Routes>
                   <Route
@@ -173,7 +177,7 @@ function App() {
                   <Route path="/register" element={<Register />} />
                 </Routes>
               </Box>
-              {!isLoginPage && !isRegisterPage && !isJournalistPage && !isProfilePage && !isNewsDetailPage && !isTrendingDetailPage && !isInternationalDetailPage && !isNationalDetailPage && !isStateDetailPage && !isEntertainmentDetailPage && !isSportsDetailPage && !isPolicyPage && !isTermsPage && <Footer />}
+              {!isLoginPage && !isRegisterPage && !isJournalistPage && !isProfilePage && !isNewsDetailPage && !isTrendingDetailPage && !isInternationalDetailPage && !isNationalDetailPage && !isStateDetailPage && !isEntertainmentDetailPage && !isSportsDetailPage && !isPolicyPage && !isTermsPage && !isAppAdsPage && <Footer />}
             </>
           }
         />
