@@ -4,17 +4,18 @@ import { Editor } from '@tinymce/tinymce-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import TinyMCEEditor from '../common/TinyMCEEditor';
-import { 
-  Dialog, 
-  DialogActions, 
-  DialogContent, 
-  DialogContentText, 
-  DialogTitle, 
-  Button 
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Button
 } from '@mui/material';
 
 // API base URL configuration
 const API_BASE_URL = 'https://api.newztok.in';
+const NEWS_API_ENDPOINT = '/api/news/create'; // Primary endpoint
 
 // Configure axios with increased timeout
 axios.defaults.timeout = 120000; // 2 minutes timeout
@@ -101,7 +102,7 @@ const VideoPost = () => {
   const [title, setTitle] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [videoFile, setVideoFile] = useState(null);
-  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null]);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [state, setState] = useState('');
@@ -111,7 +112,6 @@ const VideoPost = () => {
   const [success, setSuccess] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMethod, setUploadMethod] = useState('youtube'); // 'youtube' or 'file'
-  const [journalistProfile, setJournalistProfile] = useState(null);
   const [showSessionExpiredDialog, setShowSessionExpiredDialog] = useState(false);
   const editorRef = useRef(null);
   const navigate = useNavigate();
@@ -266,40 +266,40 @@ const VideoPost = () => {
     ]
   };
 
-  // Check for token expiration
+  // Check for token expiration on component mount
   useEffect(() => {
-    const checkTokenExpiration = () => {
-      const tokenData = localStorage.getItem('authTokenData');
-      
-      if (!tokenData) {
-        // No token found, user is not logged in
-        setShowSessionExpiredDialog(true);
-        return;
-      }
-      
-      try {
-        const parsedTokenData = JSON.parse(tokenData);
-        const tokenTimestamp = parsedTokenData.timestamp;
-        const currentTime = Date.now();
-        
-        // Check if token is older than 24 hours (86400000 ms)
-        const tokenAge = currentTime - tokenTimestamp;
-        const tokenExpirationTime = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-        
-        if (tokenAge > tokenExpirationTime) {
-          // Token has expired
-          console.log('Session expired. Token age:', tokenAge, 'ms');
-          setShowSessionExpiredDialog(true);
-        }
-      } catch (error) {
-        console.error('Error checking token expiration:', error);
-        setShowSessionExpiredDialog(true);
-      }
-    };
-    
-    // Check token expiration on component mount
     checkTokenExpiration();
   }, []);
+
+  // Check for token expiration
+  const checkTokenExpiration = () => {
+    const tokenData = localStorage.getItem('authTokenData');
+    
+    if (!tokenData) {
+      // No token found, user is not logged in
+      setShowSessionExpiredDialog(true);
+      return;
+    }
+    
+    try {
+      const parsedTokenData = JSON.parse(tokenData);
+      const tokenTimestamp = parsedTokenData.timestamp;
+      const currentTime = Date.now();
+      
+      // Check if token is older than 24 hours (86400000 ms)
+      const tokenAge = currentTime - tokenTimestamp;
+      const tokenExpirationTime = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      if (tokenAge > tokenExpirationTime) {
+        // Token has expired
+        console.log('Session expired. Token age:', tokenAge, 'ms');
+        setShowSessionExpiredDialog(true);
+      }
+    } catch (error) {
+      console.error('Error checking token expiration:', error);
+      setShowSessionExpiredDialog(true);
+    }
+  };
 
   // Handle redirect to login page
   const handleLoginRedirect = () => {
@@ -316,69 +316,57 @@ const VideoPost = () => {
     navigate('/user/login');
   };
 
-  // Function to get auth token
-  const getAuthToken = () => {
-    const storageLocations = [localStorage, sessionStorage];
-    const possibleKeys = ['authToken', 'token', 'jwtToken', 'userToken', 'accessToken'];
+  // Enhanced getAuthToken function with session expiration handling
+  const getEnhancedAuthToken = () => {
+    // Get token from all possible storage locations with fallbacks
+    const storageOptions = [localStorage, sessionStorage];
+    const tokenKeys = ['authToken', 'token', 'jwtToken', 'userToken', 'accessToken'];
     
-    for (const storage of storageLocations) {
-      for (const key of possibleKeys) {
+    for (const storage of storageOptions) {
+      for (const key of tokenKeys) {
         const token = storage.getItem(key);
         if (token) {
-          console.log(`Found token with key '${key}' in ${storage === localStorage ? 'localStorage' : 'sessionStorage'}`);
+          console.log(`Found token with key '${key}'`);
+          try {
+            // Ensure token is properly formatted and not wrapped in quotes
+            const cleanToken = token.trim().replace(/^["'](.*)["']$/, '$1');
+            // Verify the token looks like a JWT (crude validation)
+            if (cleanToken.split('.').length === 3) {
+              return cleanToken;
+            } else {
+              console.warn('Token found but does not appear to be a valid JWT format');
+            }
+          } catch (e) {
+            console.error('Error parsing token:', e);
+          }
           return token;
         }
       }
     }
     
+    console.error('No authentication token found');
+    setShowSessionExpiredDialog(true);
     return null;
   };
 
-  // Fetch journalist profile on component mount
-  useEffect(() => {
-    const fetchJournalistProfile = async () => {
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          setError('Authentication token not found. Please login again.');
-          setShowSessionExpiredDialog(true);
-          return;
-        }
-
-        const response = await axios.get(`${API_BASE_URL}/api/users/my-profile`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        console.log('Journalist profile:', response.data);
-        setJournalistProfile(response.data);
-        
-        // Set state and district from journalist profile
-        if (response.data.assignState) {
-          setState(response.data.assignState);
-          console.log('Setting assigned state:', response.data.assignState);
-        }
-        
-        if (response.data.assignDistrict) {
-          setDistrict(response.data.assignDistrict);
-          console.log('Setting assigned district:', response.data.assignDistrict);
-        }
-      } catch (err) {
-        console.error('Failed to fetch journalist profile:', err);
-        
-        // Check if the error is due to an expired token
-        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-          console.log('Token is invalid or expired');
-          setShowSessionExpiredDialog(true);
-        }
-        
-        // Don't show error to user for profile fetch, just log it
-      }
+  // Function to save a working token with timestamp
+  const saveWorkingToken = (token) => {
+    if (!token) return;
+    
+    // Save to both storage types for redundancy
+    localStorage.setItem('authToken', token);
+    sessionStorage.setItem('authToken', token);
+    
+    // Store timestamp for expiration tracking
+    const tokenData = {
+      token: token,
+      timestamp: Date.now()
     };
-
-    fetchJournalistProfile();
-  }, []);
+    localStorage.setItem('authTokenData', JSON.stringify(tokenData));
+    sessionStorage.setItem('authTokenData', JSON.stringify(tokenData));
+    
+    console.log('Token saved to both localStorage and sessionStorage with timestamp');
+  };
 
   const handleVideoFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -496,7 +484,7 @@ const VideoPost = () => {
       return;
     }
     
-    if (uploadMethod === 'youtube' && (!youtubeUrl || !youtubeUrl.includes('youtube'))) {
+    if (uploadMethod === 'youtube' && (!youtubeUrl || !isValidYouTubeUrl(youtubeUrl))) {
       setError('Please enter a valid YouTube URL');
       return;
     }
@@ -515,9 +503,9 @@ const VideoPost = () => {
       setError('Please select a category for your video post');
       return;
     }
-
-    // Get the auth token
-    const token = getAuthToken();
+    
+    // Get the auth token using the enhanced method
+    const token = getEnhancedAuthToken();
     
     if (!token) {
       setError('No authentication token found. Please login again.');
@@ -525,110 +513,99 @@ const VideoPost = () => {
       return;
     }
 
+    // Save token with timestamp if it's valid
+    saveWorkingToken(token);
+
     try {
       setLoading(true);
-      setError('Uploading video... Please wait');
+      setError('');
       setUploadProgress(0);
       
-      // Create FormData with all necessary data
+      // Create FormData to send the post with all data
       const formData = new FormData();
       
-                // Add required fields
-          formData.append('title', title.trim());
-          formData.append('content', actualContent.trim());
-          formData.append('category', category);
-          formData.append('contentType', 'video');
-          
-          // Add video data based on upload method
-          if (uploadMethod === 'youtube') {
-            formData.append('youtubeUrl', youtubeUrl);
-            console.log('Submitting YouTube video post');
-          } else {
-            // Try with field name 'featuredMedia' based on similar naming to 'featuredImage' in StandardPost
-            formData.append('featuredMedia', videoFile);
-            console.log('Submitting MP4 video with field name "featuredMedia"');
-          }
-          
-          // Add additional images if they exist
-          additionalImages.forEach((image, index) => {
-            if (image) {
-              formData.append(`additionalImage${index + 1}`, image);
-            }
-          });
-          
-          // Add optional fields only if they exist
-          if (state && state.trim() !== '') formData.append('state', state);
-          if (district && district.trim() !== '') formData.append('district', district);
+      // Add required fields
+      formData.append('title', title.trim());
+      formData.append('content', actualContent.trim());
+      formData.append('category', category);
+      formData.append('contentType', 'video');
       
-                // Log what we're sending for debugging
-          console.log('Form data keys:', [...formData.keys()]);
-          console.log('Submitting video post with the following data:', {
-            title: title.trim(),
-            content: `${actualContent.trim().substring(0, 50)}${actualContent.length > 50 ? '...' : ''}`,
-            category,
-            contentType: 'video',
-            uploadMethod,
-            state: state || '[not set]',
-            district: district || '[not set]',
-            videoInfo: uploadMethod === 'youtube' ? youtubeUrl : (videoFile ? {
-              name: videoFile.name,
-              size: `${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
-              type: videoFile.type
-            } : '[no video]'),
-            additionalImages: additionalImages.map((img, index) => 
-              img ? {
-                name: img.name,
-                size: `${(img.size / 1024).toFixed(2)} KB`,
-                type: img.type
-              } : null
-            ).filter(Boolean)
-          });
+      // Add video data based on upload method
+      if (uploadMethod === 'youtube') {
+        formData.append('youtubeUrl', youtubeUrl);
+        console.log('Submitting YouTube video post');
+      } else {
+        // For file uploads
+        formData.append('video', videoFile);
+        console.log('Submitting MP4 video post');
+      }
       
-      // Define possible field names for video upload
-      const possibleFieldNames = ['featuredMedia', 'video', 'media', 'file'];
-      let response = null;
-      let succeeded = false;
+      // Add additional images if they exist (use same key for all like StandardPost)
+      const validAdditionalImages = additionalImages.filter(image => image !== null);
+      if (validAdditionalImages.length > 0) {
+        validAdditionalImages.forEach((image, index) => {
+          formData.append('additionalImage', image); // Use same key for all additional images
+        });
+      }
       
-      // Try each field name until one works
-      for (const fieldName of possibleFieldNames) {
-        if (response) break; // Stop if we already have a successful response
-        
+      // Add optional fields only if they exist
+      if (state && state.trim() !== '') formData.append('state', state);
+      if (district && district.trim() !== '') formData.append('district', district);
+      
+      // Enhanced debugging - log all FormData entries
+      console.log('=== VideoPost FormData Debug Info ===');
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`${key}: ${value}`);
+        }
+      }
+      
+      console.log('Submitting video post with the following data:', {
+        title: title.trim(),
+        content: `${actualContent.trim().substring(0, 50)}${actualContent.length > 50 ? '...' : ''}`,
+        category,
+        contentType: 'video',
+        uploadMethod: uploadMethod,
+        youtubeUrl: uploadMethod === 'youtube' ? youtubeUrl : undefined,
+        state: state || '[not set]',
+        district: district || '[not set]',
+        videoInfo: uploadMethod === 'youtube' ? youtubeUrl : (videoFile ? {
+          name: videoFile.name,
+          size: `${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
+          type: videoFile.type
+        } : '[no video]'),
+        additionalImagesCount: validAdditionalImages.length,
+        additionalImages: validAdditionalImages.map((img, index) => ({
+          name: img.name,
+          size: `${(img.size / 1024).toFixed(2)} KB`,
+          type: img.type
+        }))
+      });
+      
+      // Set upload message
+      setError('Uploading video... Please wait');
+      
+      // Make the API request with retry mechanism and fallback endpoints
+      const apiUrl = `${API_BASE_URL}/api/news/create`;
+      console.log('Attempting to create video post via:', apiUrl);
+      console.log('Token being used:', token ? `${token.substring(0, 20)}...` : 'No token');
+      
+      let response;
+      let attempt = 1;
+      const maxRetries = 3;
+      
+      // Try main endpoint with retries
+      while (attempt <= maxRetries) {
         try {
-          console.log(`Trying with field name "${fieldName}"`);
-          setError(`Trying upload with field name "${fieldName}"... Please wait.`);
+          console.log(`Video upload attempt ${attempt}/${maxRetries}`);
           
-          // Create a new FormData for each attempt
-          const attemptFormData = new FormData();
-          
-                      // Add all the same fields
-            attemptFormData.append('title', title.trim());
-            attemptFormData.append('content', actualContent.trim());
-            attemptFormData.append('category', category);
-            attemptFormData.append('contentType', 'video');
-            
-            // Add video data with the current field name
-            if (uploadMethod === 'youtube') {
-              attemptFormData.append('youtubeUrl', youtubeUrl);
-            } else {
-              attemptFormData.append(fieldName, videoFile);
-            }
-            
-            // Add additional images if they exist
-            additionalImages.forEach((image, index) => {
-              if (image) {
-                attemptFormData.append(`additionalImage${index + 1}`, image);
-              }
-            });
-            
-            // Add optional fields
-            if (state && state.trim() !== '') attemptFormData.append('state', state);
-            if (district && district.trim() !== '') attemptFormData.append('district', district);
-          
-          // Make API request
           response = await axios({
             method: 'post',
-            url: `${API_BASE_URL}/api/news/create`,
-            data: attemptFormData,
+            url: apiUrl,
+            data: formData,
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'multipart/form-data'
@@ -637,40 +614,153 @@ const VideoPost = () => {
             onUploadProgress: (progressEvent) => {
               const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
               setUploadProgress(percentCompleted);
-              console.log(`Upload progress (${fieldName}): ${percentCompleted}%`);
+              console.log(`Upload progress (attempt ${attempt}): ${percentCompleted}%`);
             }
           });
           
-          console.log(`Video post created successfully with field name "${fieldName}":`, response.data);
-          succeeded = true;
+          // If we get here, the request was successful
           break;
           
-        } catch (attemptErr) {
-          console.log(`Attempt with field name "${fieldName}" failed:`, attemptErr.message);
+        } catch (retryError) {
+          console.log(`Attempt ${attempt} failed:`, retryError.message);
           
-          // Check if the error is due to an expired token
-          if (attemptErr.response && (attemptErr.response.status === 401 || attemptErr.response.status === 403)) {
+          // Check for authentication errors immediately
+          if (retryError.response && (retryError.response.status === 401 || retryError.response.status === 403)) {
             console.log('Token is invalid or expired');
             setShowSessionExpiredDialog(true);
-            throw attemptErr; // Re-throw to exit the loop
+            return;
           }
           
-          setError(`Attempt with field name "${fieldName}" failed. Trying another approach...`);
-          
-          // Log detailed error information
-          if (attemptErr.response) {
-            console.log('Status:', attemptErr.response.status);
-            console.log('Data:', attemptErr.response.data);
+          // Check if it's a timeout or network error that we can retry (NOT 413 file size errors)
+          if ((retryError.code === 'ECONNABORTED' || retryError.message.includes('timeout') || 
+               retryError.response?.status === 504 || retryError.response?.status === 502) && 
+              retryError.response?.status !== 413 && attempt < maxRetries) {
+            
+            console.log(`Retrying in 2 seconds... (${maxRetries - attempt} attempts left)`);
+            setError(`Upload attempt ${attempt} failed. Retrying... (${maxRetries - attempt} attempts left)`);
+            
+            // Wait 2 seconds before retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempt++;
+            continue;
+          } else {
+            // Not a retryable error or max retries reached
+            throw retryError;
           }
-          
-          // Continue to the next field name
         }
       }
       
-      // If all attempts failed, throw an error
-      if (!succeeded) {
-        throw new Error('All field name attempts failed');
+      // If all retry attempts failed, try the alternative endpoints as fallback
+      if (!response) {
+        console.log('All retry attempts failed, trying alternative endpoints...');
+        let mainEndpointErr = new Error('All retry attempts exhausted');
+        console.error('Main endpoint failed:', mainEndpointErr);
+        
+        // Try alternative endpoint #1 - /api/posts
+        try {
+          console.log('Trying alternative endpoint #1: /api/posts');
+          response = await axios({
+            method: 'post',
+            url: `${API_BASE_URL}/api/posts`,
+            data: formData,
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            },
+            timeout: uploadMethod === 'file' ? VIDEO_UPLOAD_TIMEOUT : axios.defaults.timeout
+          });
+        } catch (alt1Err) {
+          console.error('Alternative endpoint #1 failed:', alt1Err);
+          
+          // Check for authentication errors
+          if (alt1Err.response && (alt1Err.response.status === 401 || alt1Err.response.status === 403)) {
+            console.log('Token is invalid or expired');
+            setShowSessionExpiredDialog(true);
+            return;
+          }
+          
+          // Try alternative endpoint #2 - /api/content
+          try {
+            console.log('Trying alternative endpoint #2: /api/content');
+            response = await axios({
+              method: 'post',
+              url: `${API_BASE_URL}/api/content`,
+              data: formData,
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+              },
+              timeout: uploadMethod === 'file' ? VIDEO_UPLOAD_TIMEOUT : axios.defaults.timeout
+            });
+          } catch (alt2Err) {
+            console.error('Alternative endpoint #2 failed:', alt2Err);
+            
+            // Check for authentication errors
+            if (alt2Err.response && (alt2Err.response.status === 401 || alt2Err.response.status === 403)) {
+              console.log('Token is invalid or expired');
+              setShowSessionExpiredDialog(true);
+              return;
+            }
+            
+            // Last resort - Try JSON-only endpoint for videos
+            try {
+              console.log('Last resort - using /api/v2/news with JSON only (videos)');
+              
+              // Create minimal JSON without files
+              const minimalData = {
+                title: title.trim(),
+                content: actualContent.trim(),
+                category,
+                contentType: 'video',
+                status: 'pending',
+                state: state || undefined,
+                district: district || undefined
+              };
+              
+              // Add video URL or indication of video upload method
+              if (uploadMethod === 'youtube') {
+                minimalData.youtubeUrl = youtubeUrl;
+              } else {
+                minimalData.videoType = 'uploaded';
+                minimalData.note = 'Video file upload failed, please re-upload video manually';
+              }
+              
+              response = await axios.post(
+                `${API_BASE_URL}/api/v2/news`,
+                minimalData,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+            } catch (lastResortErr) {
+              console.error('All endpoints failed:', lastResortErr);
+              
+              // Check for authentication errors
+              if (lastResortErr.response && (lastResortErr.response.status === 401 || lastResortErr.response.status === 403)) {
+                console.log('Token is invalid or expired');
+                setShowSessionExpiredDialog(true);
+                return;
+              }
+              
+              // Let the main error handler deal with this
+              throw {
+                message: 'Server unavailable: All API endpoints failed',
+                originalErrors: {
+                  main: mainEndpointErr?.message,
+                  alt1: alt1Err?.message,
+                  alt2: alt2Err?.message,
+                  lastResort: lastResortErr?.message
+                }
+              };
+            }
+          }
+        }
       }
+      
+      console.log('Video post created successfully:', response.data);
       
       // Handle success
       setLoading(false);
@@ -700,11 +790,11 @@ const VideoPost = () => {
       setTitle('');
       setYoutubeUrl('');
       setVideoFile(null);
-      setAdditionalImages([null, null, null, null, null]);
+      setAdditionalImages([null, null, null, null]);
       setContent('');
       setCategory('');
-      setState(journalistProfile?.assignState || '');
-      setDistrict(journalistProfile?.assignDistrict || '');
+      setState('');
+      setDistrict('');
       setUploadProgress(0);
       
       // Navigate after a short delay
@@ -714,14 +804,11 @@ const VideoPost = () => {
       
     } catch (err) {
       console.error('API request failed:', err);
-      setLoading(false);
       
-      // Check for session expiration
+      // Check for authentication errors
       if (err.response && (err.response.status === 401 || err.response.status === 403)) {
         console.log('Token is invalid or expired');
         setShowSessionExpiredDialog(true);
-        setLoading(false);
-        setUploadProgress(0);
         return;
       }
       
@@ -735,12 +822,6 @@ const VideoPost = () => {
       } else if (err.response && err.response.data) {
         // Try to extract message from response
         let message = err.message;
-        
-        // Log the complete error response for debugging
-        console.log('Error response data:', JSON.stringify(err.response.data));
-        console.log('Error response status:', err.response.status);
-        console.log('Error response headers:', err.response.headers);
-        
         try {
           if (typeof err.response.data === 'object' && err.response.data.message) {
             message = err.response.data.message;
@@ -755,6 +836,17 @@ const VideoPost = () => {
         }
         
         setError(`Server error: ${message}. Status: ${err.response.status}`);
+      } else if (err.originalErrors) {
+        // Handle our custom multi-endpoint error
+        setError(
+          <div>
+            <div style={{fontWeight: 'bold', marginBottom: '8px'}}>All API endpoints failed</div>
+            <div>The server is currently experiencing issues. Please try again later.</div>
+            <div style={{marginTop: '8px', fontSize: '13px', color: '#666'}}>
+              Technical details: {err.message || 'Multiple endpoint failure'}
+            </div>
+          </div>
+        );
       } else {
         setError(
           <div>
@@ -766,15 +858,17 @@ const VideoPost = () => {
           </div>
         );
       }
+    } finally {
+      setLoading(false);
     }
   };
-  
-  // Helper function for YouTube URL validation
+
+  // Helper function to validate YouTube URL
   const isValidYouTubeUrl = (url) => {
     const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
     return youtubeRegex.test(url);
   };
-
+  
   const handleEditorChange = (content, editor) => {
     setContent(content);
   };
@@ -1072,7 +1166,7 @@ const VideoPost = () => {
                     color: '#111827'
                   }}
                 >
-                  Video File <span style={{ color: '#6b7280', fontSize: '12px' }}>(Max 50MB)</span>
+                  Video File <span style={{ color: '#6b7280', fontSize: '12px' }}>(Max 50MB, MP4 only)</span>
                 </label>
                 <div style={{ 
                   display: 'flex', 
@@ -1265,7 +1359,7 @@ const VideoPost = () => {
                 />
               </div>
             </div>
-            
+
             {/* State Dropdown */}
             <div style={{ marginBottom: '16px' }}>
               <label 
@@ -1279,7 +1373,7 @@ const VideoPost = () => {
                   textTransform: 'uppercase'
                 }}
               >
-                STATE {journalistProfile?.assignState && '(Pre-assigned)'}
+                STATE
               </label>
               <div style={{ position: 'relative' }}>
                 <select
@@ -1295,10 +1389,9 @@ const VideoPost = () => {
                     appearance: 'none',
                     border: '1px solid #e5e7eb',
                     borderRadius: '6px',
-                    backgroundColor: journalistProfile?.assignState ? '#f9fafb' : 'white',
+                    backgroundColor: 'white',
                     fontSize: '14px'
                   }}
-                  disabled={!!journalistProfile?.assignState}
                 >
                   <option value="">---------</option>
                   <option value="bihar">बिहार | Bihar</option>
@@ -1318,7 +1411,7 @@ const VideoPost = () => {
               </div>
             </div>
 
-            {/* District Dropdown */}
+            {/* District Dropdown - Updated with full district list from locationData */}
             <div style={{ marginBottom: '16px' }}>
               <label 
                 htmlFor="district"
@@ -1331,7 +1424,7 @@ const VideoPost = () => {
                   textTransform: 'uppercase'
                 }}
               >
-                DISTRICT {journalistProfile?.assignDistrict && '(Pre-assigned)'}
+                DISTRICT
               </label>
               <div style={{ position: 'relative' }}>
                 <select
@@ -1344,10 +1437,10 @@ const VideoPost = () => {
                     appearance: 'none',
                     border: '1px solid #e5e7eb',
                     borderRadius: '6px',
-                    backgroundColor: journalistProfile?.assignDistrict ? '#f9fafb' : 'white',
+                    backgroundColor: 'white',
                     fontSize: '14px'
                   }}
-                  disabled={!state || !!journalistProfile?.assignDistrict}
+                  disabled={!state}
                 >
                   <option value="">---------</option>
                   {state && locationData[state] && locationData[state].map(district => (

@@ -102,7 +102,7 @@ const TrendingNewsDetails = () => {
         imageUrl = newsData.thumbnailUrl.startsWith('http') 
           ? newsData.thumbnailUrl 
           : `${baseURL}${newsData.thumbnailUrl.startsWith('/') ? '' : '/'}${newsData.thumbnailUrl}`;
-      } else if (newsData.additionalImage && Array.isArray(newsData.additionalImage) && newsData.additionalImage.length > 0) {
+      } else if (newsData.additionalImage && Array.isArray(newsData.additionalImage) && newsData.additionalImage.length > 0 && typeof newsData.additionalImage[0] === 'string') {
         const firstAdditionalImage = newsData.additionalImage[0];
         imageUrl = firstAdditionalImage.startsWith('http') 
           ? firstAdditionalImage 
@@ -633,14 +633,12 @@ const TrendingNewsDetails = () => {
               break;
             }
             // Handle array values (for additionalImage)
-            else if (Array.isArray(newsData[field]) && newsData[field].length > 0) {
+            else if (Array.isArray(newsData[field]) && newsData[field].length > 0 && typeof newsData[field][0] === 'string') {
               const firstImage = newsData[field][0];
-              if (typeof firstImage === 'string') {
-                mediaToShare = firstImage.startsWith('http') 
-                  ? firstImage 
-                  : `${baseURL}${firstImage.startsWith('/') ? '' : '/'}${firstImage}`;
-                break;
-              }
+              mediaToShare = firstImage.startsWith('http') 
+                ? firstImage 
+                : `${baseURL}${firstImage.startsWith('/') ? '' : '/'}${firstImage}`;
+              break;
             }
           }
         }
@@ -849,6 +847,22 @@ const TrendingNewsDetails = () => {
       };
     }
     
+    // Check additionalImage array for videos
+    if (item.additionalImage && Array.isArray(item.additionalImage) && item.additionalImage.length > 0) {
+      for (const addImg of item.additionalImage) {
+        if (typeof addImg === 'string' && addImg.includes(videoPattern)) {
+          console.log("Found video in additionalImage array:", addImg);
+          return {
+            type: 'video',
+            url: addImg.startsWith('http') 
+              ? addImg 
+              : `${baseURL}${addImg.startsWith('/') ? '' : '/'}${addImg}`
+          };
+        }
+      }
+    }
+    
+    // Check single additionalImage string for videos
     if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes(videoPattern)) {
       console.log("Found video in additionalImage:", item.additionalImage);
       return {
@@ -881,26 +895,31 @@ const TrendingNewsDetails = () => {
     for (const prop of possibleImageProps) {
       if (item[prop]) {
         // Handle array of images
-        if (Array.isArray(item[prop]) && item[prop].length > 0) {
+        if (Array.isArray(item[prop]) && item[prop].length > 0 && typeof item[prop][0] === 'string') {
           const imgSrc = item[prop][0];
           console.log(`Found image in ${prop} array:`, imgSrc);
           
-          if (typeof imgSrc === 'string') {
-            // Skip if this is a video path, we've already handled videos
-            if (imgSrc.includes(videoPattern)) continue;
-            
-            return {
-              type: 'image',
-              url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
-            };
-          } else if (imgSrc.url || imgSrc.src) {
+          // Skip if this is a video path, we've already handled videos
+          if (imgSrc.includes(videoPattern)) continue;
+          
+          return {
+            type: 'image',
+            url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
+          };
+        }
+        
+        // Handle array of image objects
+        if (Array.isArray(item[prop]) && item[prop].length > 0 && typeof item[prop][0] === 'object') {
+          const imgSrc = item[prop][0];
+          if (imgSrc.url || imgSrc.src) {
             const url = imgSrc.url || imgSrc.src;
-            if (url.includes(videoPattern)) continue;
-            
-            return {
-              type: 'image',
-              url: url.startsWith('http') ? url : `${baseURL}${url}`
-            };
+            if (typeof url === 'string' && !url.includes(videoPattern)) {
+              console.log(`Found image object in ${prop} array:`, url);
+              return {
+                type: 'image',
+                url: url.startsWith('http') ? url : `${baseURL}${url}`
+              };
+            }
           }
         }
         
@@ -918,13 +937,13 @@ const TrendingNewsDetails = () => {
           };
         } else if (typeof item[prop] === 'object' && (item[prop].url || item[prop].src)) {
           const imgSrc = item[prop].url || item[prop].src;
-          if (imgSrc.includes(videoPattern)) continue;
-          
-          console.log(`Found image in ${prop} object:`, imgSrc);
-          return {
-            type: 'image',
-            url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
-          };
+          if (typeof imgSrc === 'string' && !imgSrc.includes(videoPattern)) {
+            console.log(`Found image in ${prop} object:`, imgSrc);
+            return {
+              type: 'image',
+              url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
+            };
+          }
         }
       }
     }
@@ -985,11 +1004,38 @@ const TrendingNewsDetails = () => {
         
         // Insert image after every 2-3 paragraphs
         if (imageIndex < additionalImages.length && (i + 1) % 3 === 0 && i < paragraphs.length - 1) {
-          const imageUrl = additionalImages[imageIndex].startsWith('http') 
-            ? additionalImages[imageIndex]
-            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
+          const currentImage = additionalImages[imageIndex];
+          if (typeof currentImage === 'string') {
+            const imageUrl = currentImage.startsWith('http') 
+              ? currentImage
+              : `${baseURL}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`;
+            
+            console.log("Inserting additional image:", imageUrl);
+            
+            processedContent += `
+              <div style="margin: 20px 0; text-align: center;">
+                <img 
+                  src="${imageUrl}" 
+                  alt="Additional Image ${imageIndex + 1}" 
+                  style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                  onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+                />
+              </div>
+            `;
+          }
+          imageIndex++;
+        }
+      }
+      
+      // If there are still unused images, add them at the end
+      while (imageIndex < additionalImages.length) {
+        const currentImage = additionalImages[imageIndex];
+        if (typeof currentImage === 'string') {
+          const imageUrl = currentImage.startsWith('http') 
+            ? currentImage
+            : `${baseURL}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`;
           
-          console.log("Inserting additional image:", imageUrl);
+          console.log("Adding remaining additional image at end:", imageUrl);
           
           processedContent += `
             <div style="margin: 20px 0; text-align: center;">
@@ -1001,28 +1047,7 @@ const TrendingNewsDetails = () => {
               />
             </div>
           `;
-          imageIndex++;
         }
-      }
-      
-      // If there are still unused images, add them at the end
-      while (imageIndex < additionalImages.length) {
-        const imageUrl = additionalImages[imageIndex].startsWith('http') 
-          ? additionalImages[imageIndex]
-          : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
-        
-        console.log("Adding remaining additional image at end:", imageUrl);
-        
-        processedContent += `
-          <div style="margin: 20px 0; text-align: center;">
-            <img 
-              src="${imageUrl}" 
-              alt="Additional Image ${imageIndex + 1}" 
-              style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
-              onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
-            />
-          </div>
-        `;
         imageIndex++;
       }
       
@@ -1045,22 +1070,25 @@ const TrendingNewsDetails = () => {
         
         // Add additional image after heading tag if available
         if (imageIndex < additionalImages.length) {
-          const imageUrl = additionalImages[imageIndex].startsWith('http') 
-            ? additionalImages[imageIndex]
-            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
-          
-          console.log("Inserting additional image after heading:", imageUrl);
-          
-          processedContent += `
-            <div style="margin: 20px 0; text-align: center;">
-              <img 
-                src="${imageUrl}" 
-                alt="Additional Image ${imageIndex + 1}" 
-                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
-                onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
-              />
-            </div>
-          `;
+          const currentImage = additionalImages[imageIndex];
+          if (typeof currentImage === 'string') {
+            const imageUrl = currentImage.startsWith('http') 
+              ? currentImage
+              : `${baseURL}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`;
+            
+            console.log("Inserting additional image after heading:", imageUrl);
+            
+            processedContent += `
+              <div style="margin: 20px 0; text-align: center;">
+                <img 
+                  src="${imageUrl}" 
+                  alt="Additional Image ${imageIndex + 1}" 
+                  style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                  onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+                />
+              </div>
+            `;
+          }
           imageIndex++;
         }
       }
@@ -1068,22 +1096,25 @@ const TrendingNewsDetails = () => {
     
     // If there are still unused images, add them at the end
     while (imageIndex < additionalImages.length) {
-      const imageUrl = additionalImages[imageIndex].startsWith('http') 
-        ? additionalImages[imageIndex]
-        : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
-      
-      console.log("Adding remaining additional image at end:", imageUrl);
-      
-      processedContent += `
-        <div style="margin: 20px 0; text-align: center;">
-          <img 
-            src="${imageUrl}" 
-            alt="Additional Image ${imageIndex + 1}" 
-            style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
-            onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
-          />
-        </div>
-      `;
+      const currentImage = additionalImages[imageIndex];
+      if (typeof currentImage === 'string') {
+        const imageUrl = currentImage.startsWith('http') 
+          ? currentImage
+          : `${baseURL}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`;
+        
+        console.log("Adding remaining additional image at end:", imageUrl);
+        
+        processedContent += `
+          <div style="margin: 20px 0; text-align: center;">
+            <img 
+              src="${imageUrl}" 
+              alt="Additional Image ${imageIndex + 1}" 
+              style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+              onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+            />
+          </div>
+        `;
+      }
       imageIndex++;
     }
 

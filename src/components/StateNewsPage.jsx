@@ -294,7 +294,7 @@ const StateNewsPage = () => {
     fetchSideAds();
   }, []);
 
-  // Helper functions
+  // Enhanced helper function with comprehensive additionalImage support
   const getFullImageUrl = (imagePath, item = null) => {
     // Log for debugging if item is provided
     if (item) {
@@ -303,6 +303,7 @@ const StateNewsPage = () => {
         featuredImage: item.featuredImage,
         image: item.image,
         additionalImage: item.additionalImage,
+        images: item.images,
         youtubeUrl: item.youtubeUrl
       });
     }
@@ -319,7 +320,7 @@ const StateNewsPage = () => {
     }
     
     // If item has images array with content
-    if (item && item.images && Array.isArray(item.images) && item.images.length > 0) {
+    if (item && item.images && Array.isArray(item.images) && item.images.length > 0 && typeof item.images[0] === 'string') {
       console.log(`Using images array for "${item.title}": ${item.images[0]}`);
       return item.images[0];
     }
@@ -385,6 +386,7 @@ const StateNewsPage = () => {
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
+  // Enhanced hasVideo function with comprehensive additionalImage support
   const hasVideo = (item) => {
     return item.hasVideo || 
       item.video || 
@@ -394,37 +396,41 @@ const StateNewsPage = () => {
       (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-'));
   };
 
+  // Enhanced getVideoUrl function with comprehensive additionalImage support
   const getVideoUrl = (item) => {
-      if (item.video) {
-        return item.video;
-      }
-      
-      if (item.videoPath && typeof item.videoPath === 'string') {
-        return item.videoPath.startsWith('http') 
-          ? item.videoPath 
-          : `${baseUrl}${item.videoPath}`;
-      }
-      
-      if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
-        return item.featuredImage.startsWith('http') 
-          ? item.featuredImage 
-          : `${baseUrl}${item.featuredImage}`;
-      }
-      
-      if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
-        return item.image.startsWith('http') 
-          ? item.image 
-          : `${baseUrl}${item.image}`;
-      }
-      
-      if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
-        return item.additionalImage.startsWith('http') 
-          ? item.additionalImage 
-          : `${baseUrl}${item.additionalImage}`;
-      }
-      
-      return null;
-    };
+    // First, check if video property is already set (from our processing)
+    if (item.video) {
+      return item.video;
+    }
+    
+    // Next, check for videoPath property
+    if (item.videoPath && typeof item.videoPath === 'string') {
+      return item.videoPath.startsWith('http') 
+        ? item.videoPath 
+        : `${baseUrl}${item.videoPath}`;
+    }
+    
+    // Check other fields for video paths including additionalImage
+    if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
+      return item.featuredImage.startsWith('http') 
+        ? item.featuredImage 
+        : `${baseUrl}${item.featuredImage}`;
+    }
+    
+    if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
+      return item.image.startsWith('http') 
+        ? item.image 
+        : `${baseUrl}${item.image}`;
+    }
+    
+    if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
+      return item.additionalImage.startsWith('http') 
+        ? item.additionalImage 
+        : `${baseUrl}${item.additionalImage}`;
+    }
+    
+    return null;
+  };
     
   const formatDate = (dateString) => {
     if (!dateString) return 'No date';
@@ -442,7 +448,7 @@ const StateNewsPage = () => {
     }
   };
       
-  // NewsCard component with modern styling
+  // Enhanced NewsCard component with comprehensive additionalImage and YouTube support
   const NewsCard = ({ image, title, timestamp, isVideo, item }) => {
     const handleCardClick = () => {
       navigate(`/state/${state}/${item.id || item._id}`);
@@ -492,26 +498,109 @@ const StateNewsPage = () => {
         {/* Media Section - 55% height */}
         {isVideo ? (
           <Box sx={{ position: 'relative', height: '55%', width: '100%' }}>
-            <Box
-              component="video"
-              src={getVideoUrl(item)}
-              controls
-              preload="metadata"
-              controlsList="nodownload" 
-              onClick={(e) => e.stopPropagation()}
-              playsInline
-              muted
-              sx={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-              onError={(e) => {
-                console.error('Video failed to load:', getVideoUrl(item));
-                e.target.onerror = null;
-                e.target.style.display = 'none';
-              }}
-            />
+            {item.youtubeUrl ? (
+              <Box sx={{ position: 'relative', height: '100%' }}>
+                {(() => {
+                  // Function to extract YouTube video ID from various URL formats
+                  const getYouTubeVideoId = (url) => {
+                    if (!url) return null;
+                    
+                    try {
+                      const urlObj = new URL(url);
+                      
+                      // Handle YouTube Shorts
+                      if (urlObj.pathname.includes('/shorts/')) {
+                        const shortsId = urlObj.pathname.split('/shorts/')[1];
+                        return shortsId.split('?')[0];
+                      }
+                      
+                      // Handle regular YouTube URLs
+                      if (urlObj.searchParams.get('v')) {
+                        return urlObj.searchParams.get('v');
+                      }
+                      
+                      // Handle youtu.be URLs
+                      if (urlObj.hostname === 'youtu.be') {
+                        return urlObj.pathname.slice(1);
+                      }
+                      
+                      // Handle embed URLs
+                      if (urlObj.pathname.includes('/embed/')) {
+                        return urlObj.pathname.split('/embed/')[1];
+                      }
+                    } catch (err) {
+                      console.error('Error parsing YouTube URL:', err);
+                    }
+                    
+                    return null;
+                  };
+
+                  const videoId = getYouTubeVideoId(item.youtubeUrl);
+                  
+                  if (!videoId) {
+                    return (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: '#f5f5f5',
+                          color: '#666',
+                        }}
+                      >
+                        Video not available
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Box
+                      component="iframe"
+                      src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`}
+                      title={item.title}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        border: 'none',
+                      }}
+                      onError={(e) => {
+                        console.error('YouTube iframe error:', e);
+                      }}
+                    />
+                  );
+                })()}
+              </Box>
+            ) : (
+              <Box
+                component="video"
+                src={getVideoUrl(item)}
+                controls
+                preload="metadata"
+                controlsList="nodownload" 
+                onClick={(e) => e.stopPropagation()}
+                playsInline
+                muted
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+                onError={(e) => {
+                  console.error('Video failed to load:', getVideoUrl(item));
+                  e.target.onerror = null;
+                  e.target.style.display = 'none';
+                }}
+              />
+            )}
             <Box
               sx={{
                 position: 'absolute',
@@ -591,7 +680,7 @@ const StateNewsPage = () => {
     );
   };
 
-  // AdCard component
+  // Enhanced AdCard component
   const AdCard = ({ height }) => {
     const [sideAd, setSideAd] = useState(null);
 
@@ -641,7 +730,7 @@ const StateNewsPage = () => {
         {sideAd?.imageUrl ? (
           <Box 
             component="img"
-            src={sideAd.imageUrl.startsWith('http') ? sideAd.imageUrl : `${baseUrl}${sideAd.imageUrl}`}
+            src={sideAd.imageUrl.startsWith('http') ? sideAd.imageUrl : `${baseUrl}${sideAd.imageUrl.startsWith('/') ? '' : '/'}${sideAd.imageUrl}`}
             alt={sideAd.title || "Advertisement"}
             sx={{ 
               width: '100%', 
@@ -668,11 +757,27 @@ const StateNewsPage = () => {
             Advertisement
           </Box>
         )}
+        
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            position: 'absolute', 
+            bottom: 5, 
+            right: 10, 
+            fontSize: '0.6rem',
+            color: '#FFF',
+            bgcolor: 'rgba(0,0,0,0.5)',
+            px: 0.5,
+            borderRadius: 0.5
+          }}
+        >
+          Ad
+        </Typography>
       </Box>
     );
   };
 
-  // TrendingCard component for sidebar
+  // Enhanced TrendingCard component for sidebar
   const TrendingCard = ({ image, title, date, item }) => {
     const handleCardClick = () => {
       navigate(`/state/${state}/${item.id || item._id}`);
@@ -776,10 +881,10 @@ const StateNewsPage = () => {
     );
   };
 
-  // Convert news data to required format
+  // Enhanced conversion functions with comprehensive additionalImage support
   const convertNewsToVideoFormat = (newsArray) => {
     return newsArray.slice(0, 5).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       timestamp: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       time: new Date(item.createdAt || item.updatedAt || item.publishedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -789,7 +894,7 @@ const StateNewsPage = () => {
 
   const convertNewsToTrendingFormat = (newsArray) => {
     return newsArray.slice(0, 10).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       date: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       item: item
@@ -798,7 +903,7 @@ const StateNewsPage = () => {
 
   const convertNewsToBottomCardsFormat = (newsArray) => {
     return newsArray.slice(0, 15).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       item: item
     }));
@@ -1021,7 +1126,7 @@ const StateNewsPage = () => {
                         {districtNews.slice(0, 2).map((news, idx) => (
                           <Box key={idx} sx={{ mb: 3, width: '100%', height: '480px' }}>
                             <NewsCard
-                              image={getFullImageUrl(news.featuredImage || news.image || news.additionalImage, news)}
+                              image={getFullImageUrl(null, news)} // Use enhanced function
                               title={news.title}
                               timestamp={formatDate(news.createdAt || news.updatedAt)}
                               isVideo={hasVideo(news)}
@@ -1145,7 +1250,15 @@ const StateNewsPage = () => {
                   }} 
                   onClick={() => navigate(`/state/${state}/${card.item.id || card.item._id}`)}
                   >
-                  <img src={card.image} alt={card.title} style={{ width: '100%', height: '60%', objectFit: 'cover' }} />
+                  <img 
+                    src={card.image} 
+                    alt={card.title} 
+                    style={{ width: '100%', height: '60%', objectFit: 'cover' }} 
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://via.placeholder.com/230x80?text=No+Image';
+                    }}
+                  />
                   <Box sx={{ p: 1 }}>
                     <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#222', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.title}</Typography>
                       </Box>
@@ -1159,4 +1272,4 @@ const StateNewsPage = () => {
   );
 };
 
-export default StateNewsPage; 
+export default StateNewsPage;

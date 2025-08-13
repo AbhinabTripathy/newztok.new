@@ -88,7 +88,7 @@ const StateNews = () => {
     fetchSideAds();
   }, []);
 
-  // Helper functions
+  // Enhanced helper function with comprehensive additionalImage support
   const getFullImageUrl = (imagePath, item = null) => {
     // Log for debugging if item is provided
     if (item) {
@@ -97,6 +97,7 @@ const StateNews = () => {
         featuredImage: item.featuredImage,
         image: item.image,
         additionalImage: item.additionalImage,
+        images: item.images,
         youtubeUrl: item.youtubeUrl
       });
     }
@@ -113,30 +114,51 @@ const StateNews = () => {
     }
     
     // If item has images array with content
-    if (item && item.images && item.images.length > 0) {
+    if (item && item.images && Array.isArray(item.images) && item.images.length > 0 && typeof item.images[0] === 'string') {
       console.log(`Using images[0] from array for "${item.title}": ${item.images[0]}`);
       return item.images[0];
     }
     
     // Check featuredImage first
     if (item && item.featuredImage && typeof item.featuredImage === 'string') {
-      const featuredImageUrl = item.featuredImage.startsWith('http') ? item.featuredImage : `${baseUrl}${item.featuredImage}`;
-      console.log(`Using featuredImage for "${item.title}": ${featuredImageUrl}`);
-      return featuredImageUrl;
+      // Check if it's a full URL or just a path
+      if (item.featuredImage.startsWith('http')) {
+        console.log(`Using full featuredImage URL for "${item.title}": ${item.featuredImage}`);
+        return item.featuredImage;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.featuredImage}`;
+        console.log(`Using relative featuredImage with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
     }
     
     // Check image second
     if (item && item.image && typeof item.image === 'string') {
-      const imageUrl = item.image.startsWith('http') ? item.image : `${baseUrl}${item.image}`;
-      console.log(`Using image for "${item.title}": ${imageUrl}`);
-      return imageUrl;
+      // Check if it's a full URL or just a path
+      if (item.image.startsWith('http')) {
+        console.log(`Using full image URL for "${item.title}": ${item.image}`);
+        return item.image;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.image}`;
+        console.log(`Using relative image with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
     }
     
     // Check additionalImage third
     if (item && item.additionalImage && typeof item.additionalImage === 'string') {
-      const additionalImageUrl = item.additionalImage.startsWith('http') ? item.additionalImage : `${baseUrl}${item.additionalImage}`;
-      console.log(`Using additionalImage for "${item.title}": ${additionalImageUrl}`);
-      return additionalImageUrl;
+      // Check if it's a full URL or just a path
+      if (item.additionalImage.startsWith('http')) {
+        console.log(`Using full additionalImage URL for "${item.title}": ${item.additionalImage}`);
+        return item.additionalImage;
+      } else {
+        // Add base URL for relative paths
+        const fullUrl = `${baseUrl}${item.additionalImage}`;
+        console.log(`Using relative additionalImage with base URL for "${item.title}": ${fullUrl}`);
+        return fullUrl;
+      }
     }
     
     // Legacy support for direct imagePath parameter
@@ -152,6 +174,7 @@ const StateNews = () => {
     return 'https://via.placeholder.com/400x300?text=No+Image';
   };
 
+  // Enhanced hasVideo function with comprehensive additionalImage support
   const hasVideo = (item) => {
     return item.hasVideo || 
       item.video || 
@@ -161,53 +184,57 @@ const StateNews = () => {
       (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-'));
   };
 
+  // Enhanced getVideoUrl function with comprehensive additionalImage support
   const getVideoUrl = (item) => {
-      if (item.video) {
-        return item.video;
-      }
-      
-      if (item.videoPath && typeof item.videoPath === 'string') {
-        return item.videoPath.startsWith('http') 
-          ? item.videoPath 
-          : `${baseUrl}${item.videoPath}`;
-      }
-      
-      if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
-        return item.featuredImage.startsWith('http') 
-          ? item.featuredImage 
-          : `${baseUrl}${item.featuredImage}`;
-      }
-      
-      if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
-        return item.image.startsWith('http') 
-          ? item.image 
-          : `${baseUrl}${item.image}`;
-      }
-      
-      if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
-        return item.additionalImage.startsWith('http') 
-          ? item.additionalImage 
-          : `${baseUrl}${item.additionalImage}`;
-      }
-      
-      return null;
-    };
+    // First, check if video property is already set (from our processing)
+    if (item.video) {
+      return item.video;
+    }
     
-    const formatDate = (dateString) => {
-      if (!dateString) return 'No date';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      } catch (e) {
-        return dateString;
-      }
-    };
+    // Next, check for videoPath property
+    if (item.videoPath && typeof item.videoPath === 'string') {
+      return item.videoPath.startsWith('http') 
+        ? item.videoPath 
+        : `${baseUrl}${item.videoPath}`;
+    }
+    
+    // Check other fields for video paths including additionalImage
+    if (item.featuredImage && typeof item.featuredImage === 'string' && item.featuredImage.includes('/uploads/videos/video-')) {
+      return item.featuredImage.startsWith('http') 
+        ? item.featuredImage 
+        : `${baseUrl}${item.featuredImage}`;
+    }
+    
+    if (item.image && typeof item.image === 'string' && item.image.includes('/uploads/videos/video-')) {
+      return item.image.startsWith('http') 
+        ? item.image 
+        : `${baseUrl}${item.image}`;
+    }
+    
+    if (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.includes('/uploads/videos/video-')) {
+      return item.additionalImage.startsWith('http') 
+        ? item.additionalImage 
+        : `${baseUrl}${item.additionalImage}`;
+    }
+    
+    return null;
+  };
+    
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No date';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
 
   // Helper function to capitalize first letter of each word
   const capitalizeFirstLetter = (string) => {
@@ -218,7 +245,7 @@ const StateNews = () => {
       .join(' ');
   };
 
-  // NewsCard component
+  // Enhanced NewsCard component with comprehensive additionalImage support
   const NewsCard = ({ image, title, timestamp, isVideo, item }) => {
     const handleCardClick = () => {
       navigate(`/state/${item.state ? item.state.toLowerCase() : 'all'}/${item.id}`);
@@ -290,26 +317,109 @@ const StateNews = () => {
         {/* Media Section - In the middle */}
         {isVideo ? (
           <Box sx={{ position: 'relative', height: '55%', width: '100%' }}>
-            <Box
-              component="video"
-              src={getVideoUrl(item)}
-              controls
-              preload="metadata"
-              controlsList="nodownload"
-              onClick={(e) => e.stopPropagation()}
-              playsInline
-              muted
-              sx={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-              onError={(e) => {
-                console.error('Video failed to load:', getVideoUrl(item));
-                e.target.onerror = null;
-                e.target.style.display = 'none';
-              }}
-            />
+            {item.youtubeUrl ? (
+              <Box sx={{ position: 'relative', height: '100%' }}>
+                {(() => {
+                  // Function to extract YouTube video ID from various URL formats
+                  const getYouTubeVideoId = (url) => {
+                    if (!url) return null;
+                    
+                    try {
+                      const urlObj = new URL(url);
+                      
+                      // Handle YouTube Shorts
+                      if (urlObj.pathname.includes('/shorts/')) {
+                        const shortsId = urlObj.pathname.split('/shorts/')[1];
+                        return shortsId.split('?')[0];
+                      }
+                      
+                      // Handle regular YouTube URLs
+                      if (urlObj.searchParams.get('v')) {
+                        return urlObj.searchParams.get('v');
+                      }
+                      
+                      // Handle youtu.be URLs
+                      if (urlObj.hostname === 'youtu.be') {
+                        return urlObj.pathname.slice(1);
+                      }
+                      
+                      // Handle embed URLs
+                      if (urlObj.pathname.includes('/embed/')) {
+                        return urlObj.pathname.split('/embed/')[1];
+                      }
+                    } catch (err) {
+                      console.error('Error parsing YouTube URL:', err);
+                    }
+                    
+                    return null;
+                  };
+
+                  const videoId = getYouTubeVideoId(item.youtubeUrl);
+                  
+                  if (!videoId) {
+                    return (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: '#f5f5f5',
+                          color: '#666',
+                        }}
+                      >
+                        Video not available
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Box
+                      component="iframe"
+                      src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`}
+                      title={item.title}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        border: 'none',
+                      }}
+                      onError={(e) => {
+                        console.error('YouTube iframe error:', e);
+                      }}
+                    />
+                  );
+                })()}
+              </Box>
+            ) : (
+              <Box
+                component="video"
+                src={getVideoUrl(item)}
+                controls
+                preload="metadata"
+                controlsList="nodownload"
+                onClick={(e) => e.stopPropagation()}
+                playsInline
+                muted
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+                onError={(e) => {
+                  console.error('Video failed to load:', getVideoUrl(item));
+                  e.target.onerror = null;
+                  e.target.style.display = 'none';
+                }}
+              />
+            )}
             <Box
               sx={{
                 position: 'absolute',
@@ -414,7 +524,7 @@ const StateNews = () => {
     );
   };
 
-  // AdCard component
+  // Enhanced AdCard component
   const AdCard = ({ image, height }) => {
     const [sideAd, setSideAd] = useState(null);
 
@@ -463,7 +573,7 @@ const StateNews = () => {
         {sideAd?.imageUrl ? (
           <Box 
             component="img"
-            src={sideAd.imageUrl.startsWith('http') ? sideAd.imageUrl : `${baseUrl}${sideAd.imageUrl}`}
+            src={sideAd.imageUrl.startsWith('http') ? sideAd.imageUrl : `${baseUrl}${sideAd.imageUrl.startsWith('/') ? '' : '/'}${sideAd.imageUrl}`}
             alt={sideAd.title || "Advertisement"}
             sx={{ 
               width: '100%', 
@@ -490,20 +600,36 @@ const StateNews = () => {
             Advertisement
           </Box>
         )}
+        
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            position: 'absolute', 
+            bottom: 5, 
+            right: 10, 
+            fontSize: '0.6rem',
+            color: '#FFF',
+            bgcolor: 'rgba(0,0,0,0.5)',
+            px: 0.5,
+            borderRadius: 0.5
+          }}
+        >
+          Ad
+        </Typography>
       </Box>
     );
   };
 
-  // TrendingCard component
+  // Enhanced TrendingCard component
   const TrendingCard = ({ image, title, date, item }) => {
     const handleCardClick = () => {
       navigate(`/state/${item.state ? item.state.toLowerCase() : 'all'}/${item.id}`);
     };
 
-      return (
+    return (
       <Paper elevation={0} sx={{
-            display: 'flex',
-            alignItems: 'center',
+        display: 'flex',
+        alignItems: 'center',
         width: '369px',
         height: '88.96px',
         mb: 2,
@@ -554,7 +680,7 @@ const StateNews = () => {
           <Typography sx={{ fontSize: 11, color: '#888' }}>{date}</Typography>
         </Box>
       </Paper>
-      );
+    );
   };
 
   // AutoScrollRow component
@@ -578,11 +704,11 @@ const StateNews = () => {
       return () => cancelAnimationFrame(frame);
     }, [children]);
 
-      return (
-        <Box 
+    return (
+      <Box 
         ref={scrollRef}
-          sx={{ 
-            display: 'flex',
+        sx={{ 
+          display: 'flex',
           gap: 2,
           overflowX: 'hidden',
           width: '100%',
@@ -591,14 +717,14 @@ const StateNews = () => {
           msOverflowStyle: 'none',
           scrollbarWidth: 'none',
           pointerEvents: 'none',
-            }}
-          >
+        }}
+      >
         {children}
-        </Box>
-      );
+      </Box>
+    );
   };
 
-  // MultiCardAutoSlider component
+  // Enhanced MultiCardAutoSlider component
   const MultiCardAutoSlider = ({ cards, cardsPerSlide = 3, cardWidth = 370, gap = 32, height = 210 }) => {
     const [current, setCurrent] = useState(0);
     const totalCards = cards.length;
@@ -627,7 +753,7 @@ const StateNews = () => {
         sx={{ 
           width: `${cardWidth * cardsPerSlide + gap * (cardsPerSlide - 1)}px`,
           overflow: 'hidden',
-              display: 'flex',
+          display: 'flex',
           scrollBehavior: 'smooth',
           '&::-webkit-scrollbar': { display: 'none' },
           msOverflowStyle: 'none',
@@ -637,11 +763,41 @@ const StateNews = () => {
       >
         <Box sx={{ display: 'flex', gap: `${gap}px` }}>
           {cards.map((card, idx) => (
-            <Box key={idx} sx={{ width: `${cardWidth}px`, bgcolor: '#fff', borderRadius: 2, boxShadow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', p: 0, mb: 0 }}>
-              <img src={card.image} alt={card.alt} style={{ width: '100%', height: `${height}px`, objectFit: 'cover' }} />
+            <Box 
+              key={idx} 
+              sx={{ 
+                width: `${cardWidth}px`, 
+                bgcolor: '#fff', 
+                borderRadius: 2, 
+                boxShadow: 1, 
+                overflow: 'hidden', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                p: 0, 
+                mb: 0,
+                cursor: 'pointer'
+              }}
+              onClick={() => navigate(`/state/${card.item?.state ? card.item.state.toLowerCase() : 'all'}/${card.item?.id}`)}
+            >
+              <img 
+                src={card.image} 
+                alt={card.alt} 
+                style={{ 
+                  width: '100%', 
+                  height: `${height}px`, 
+                  objectFit: 'cover' 
+                }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://via.placeholder.com/370x210?text=No+Image';
+                }}
+              />
               <Box sx={{ p: 2, pt: 2 }}>
-                <Typography sx={{ fontSize: 15, color: '#222', fontWeight: 400, lineHeight: 1.4 }}>{card.text}</Typography>
-          </Box>
+                <Typography sx={{ fontSize: 15, color: '#222', fontWeight: 400, lineHeight: 1.4 }}>
+                  {card.text}
+                </Typography>
+              </Box>
             </Box>
           ))}
         </Box>
@@ -649,10 +805,10 @@ const StateNews = () => {
     );
   };
 
-  // Convert news data to required format
+  // Enhanced conversion functions with comprehensive additionalImage support
   const convertNewsToVideoFormat = (newsArray) => {
     return newsArray.slice(0, 5).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       timestamp: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       time: new Date(item.createdAt || item.updatedAt || item.publishedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -662,7 +818,7 @@ const StateNews = () => {
 
   const convertNewsToTrendingFormat = (newsArray) => {
     return newsArray.slice(0, 20).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       date: formatDate(item.createdAt || item.updatedAt || item.publishedAt),
       item: item
@@ -671,7 +827,7 @@ const StateNews = () => {
 
   const convertNewsToBottomCardsFormat = (newsArray) => {
     return newsArray.slice(0, 20).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       title: item.title || 'No title available',
       item: item
     }));
@@ -679,26 +835,27 @@ const StateNews = () => {
 
   const convertNewsToMostSharedFormat = (newsArray) => {
     return newsArray.slice(0, 10).map(item => ({
-      image: getFullImageUrl(item.featuredImage || item.image || item.additionalImage, item),
+      image: getFullImageUrl(null, item), // Use enhanced function with item
       alt: item.title || 'News',
-      text: item.title || 'No title available'
+      text: item.title || 'No title available',
+      item: item
     }));
   };
 
   if (loading) {
-  return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>Loading state news...</Typography>
-        </Box>
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
+        <CircularProgress />
+        <Typography variant="h6" sx={{ ml: 2 }}>Loading state news...</Typography>
+      </Box>
     );
   }
 
   if (error) {
     return (
-        <Box sx={{ p: 3, backgroundColor: '#FFF5F5', borderRadius: 2, color: '#E53E3E', textAlign: 'center', mb: 4 }}>
-          <Typography variant="h6">{error}</Typography>
-        </Box>
+      <Box sx={{ p: 3, backgroundColor: '#FFF5F5', borderRadius: 2, color: '#E53E3E', textAlign: 'center', mb: 4 }}>
+        <Typography variant="h6">{error}</Typography>
+      </Box>
     );
   }
 
@@ -763,7 +920,15 @@ const StateNews = () => {
           <AutoScrollRow>
             {biharBottomCards.map((card, idx) => (
               <Box key={idx} sx={{ minWidth: '230.22px', maxWidth: '230.22px', height: '129.5px', bgcolor: '#fff', borderRadius: 2, boxShadow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }} onClick={() => navigate(`/state/${card.item.state ? card.item.state.toLowerCase() : 'all'}/${card.item.id}`)}>
-                <img src={card.image} alt={card.title} style={{ width: '100%', height: '60%', objectFit: 'cover' }} />
+                <img 
+                  src={card.image} 
+                  alt={card.title} 
+                  style={{ width: '100%', height: '60%', objectFit: 'cover' }} 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://via.placeholder.com/230x80?text=No+Image';
+                  }}
+                />
                 <Box sx={{ p: 1 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#222', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.title}</Typography>
                 </Box>
@@ -813,7 +978,15 @@ const StateNews = () => {
           <AutoScrollRow>
             {jharkhandBottomCards.map((card, idx) => (
               <Box key={idx} sx={{ minWidth: '230.22px', maxWidth: '230.22px', height: '129.5px', bgcolor: '#fff', borderRadius: 2, boxShadow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }} onClick={() => navigate(`/state/${card.item.state ? card.item.state.toLowerCase() : 'all'}/${card.item.id}`)}>
-                <img src={card.image} alt={card.title} style={{ width: '100%', height: '60%', objectFit: 'cover' }} />
+                <img 
+                  src={card.image} 
+                  alt={card.title} 
+                  style={{ width: '100%', height: '60%', objectFit: 'cover' }} 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://via.placeholder.com/230x80?text=No+Image';
+                  }}
+                />
                 <Box sx={{ p: 1 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#222', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.title}</Typography>
                 </Box>
@@ -863,7 +1036,15 @@ const StateNews = () => {
           <AutoScrollRow>
             {upBottomCards.map((card, idx) => (
               <Box key={idx} sx={{ minWidth: '230.22px', maxWidth: '230.22px', height: '129.5px', bgcolor: '#fff', borderRadius: 2, boxShadow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }} onClick={() => navigate(`/state/${card.item.state ? card.item.state.toLowerCase() : 'all'}/${card.item.id}`)}>
-                <img src={card.image} alt={card.title} style={{ width: '100%', height: '60%', objectFit: 'cover' }} />
+                <img 
+                  src={card.image} 
+                  alt={card.title} 
+                  style={{ width: '100%', height: '60%', objectFit: 'cover' }} 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://via.placeholder.com/230x80?text=No+Image';
+                  }}
+                />
                 <Box sx={{ p: 1 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#222', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.title}</Typography>
                 </Box>
@@ -900,4 +1081,4 @@ const StateNews = () => {
   );
 };
 
-export default StateNews; 
+export default StateNews;

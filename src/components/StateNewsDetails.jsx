@@ -105,6 +105,11 @@ const StateNewsDetails = () => {
         imageUrl = newsData.thumbnailUrl.startsWith('http') 
           ? newsData.thumbnailUrl 
           : `${baseURL}${newsData.thumbnailUrl.startsWith('/') ? '' : '/'}${newsData.thumbnailUrl}`;
+      } else if (newsData.additionalImage && Array.isArray(newsData.additionalImage) && newsData.additionalImage.length > 0 && typeof newsData.additionalImage[0] === 'string') {
+        const firstAdditionalImage = newsData.additionalImage[0];
+        imageUrl = firstAdditionalImage.startsWith('http') 
+          ? firstAdditionalImage 
+          : `${baseURL}${firstAdditionalImage.startsWith('/') ? '' : '/'}${firstAdditionalImage}`;
       }
       
       // Update meta tags for better sharing
@@ -441,15 +446,26 @@ const StateNewsDetails = () => {
       }
       // Last resort - try other image fields
       else {
-        // Try common image field names
-        const imageFields = ['imageUrl', 'thumbnailUrl', 'thumbnail', 'image'];
+        // Try common image field names including additionalImage
+        const imageFields = ['imageUrl', 'thumbnailUrl', 'thumbnail', 'image', 'additionalImage'];
         
         for (const field of imageFields) {
-          if (newsData[field] && typeof newsData[field] === 'string') {
-            mediaToShare = newsData[field].startsWith('http') 
-              ? newsData[field] 
-              : `${baseURL}${newsData[field].startsWith('/') ? '' : '/'}${newsData[field]}`;
-            break;
+          if (newsData[field]) {
+            // Handle string values
+            if (typeof newsData[field] === 'string') {
+              mediaToShare = newsData[field].startsWith('http') 
+                ? newsData[field] 
+                : `${baseURL}${newsData[field].startsWith('/') ? '' : '/'}${newsData[field]}`;
+              break;
+            }
+            // Handle array values (for additionalImage)
+            else if (Array.isArray(newsData[field]) && newsData[field].length > 0 && typeof newsData[field][0] === 'string') {
+              const firstImage = newsData[field][0];
+              mediaToShare = firstImage.startsWith('http') 
+                ? firstImage 
+                : `${baseURL}${firstImage.startsWith('/') ? '' : '/'}${firstImage}`;
+              break;
+            }
           }
         }
       }
@@ -683,31 +699,36 @@ const StateNewsDetails = () => {
     }
     
     // Handle images with various property names
-    const possibleImageProps = ['featuredImage', 'image', 'images', 'thumbnail', 'thumbnailUrl', 'imageUrl', 'featured_image'];
+    const possibleImageProps = ['featuredImage', 'image', 'additionalImage', 'images', 'thumbnail', 'thumbnailUrl', 'imageUrl', 'featured_image'];
     
     for (const prop of possibleImageProps) {
       if (item[prop]) {
         // Handle array of images
-        if (Array.isArray(item[prop]) && item[prop].length > 0) {
+        if (Array.isArray(item[prop]) && item[prop].length > 0 && typeof item[prop][0] === 'string') {
           const imgSrc = item[prop][0];
           console.log(`Found image in ${prop} array:`, imgSrc);
           
-          if (typeof imgSrc === 'string') {
-            // Skip if this is a video path, we've already handled videos
-            if (imgSrc.includes(videoPattern)) continue;
-            
-            return {
-              type: 'image',
-              url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
-            };
-          } else if (imgSrc.url || imgSrc.src) {
+          // Skip if this is a video path, we've already handled videos
+          if (imgSrc.includes(videoPattern)) continue;
+          
+          return {
+            type: 'image',
+            url: imgSrc.startsWith('http') ? imgSrc : `${baseURL}${imgSrc}`
+          };
+        }
+        
+        // Handle array of image objects
+        if (Array.isArray(item[prop]) && item[prop].length > 0 && typeof item[prop][0] === 'object') {
+          const imgSrc = item[prop][0];
+          if (imgSrc.url || imgSrc.src) {
             const url = imgSrc.url || imgSrc.src;
-            if (url.includes(videoPattern)) continue;
-            
-            return {
-              type: 'image',
-              url: url.startsWith('http') ? url : `${baseURL}${url}`
-            };
+            if (typeof url === 'string' && !url.includes(videoPattern)) {
+              console.log(`Found image object in ${prop} array:`, url);
+              return {
+                type: 'image',
+                url: url.startsWith('http') ? url : `${baseURL}${url}`
+              };
+            }
           }
         }
         
@@ -767,20 +788,23 @@ const StateNewsDetails = () => {
         
         // Add additional image after h2 tag if available
         if (imageIndex < additionalImages.length) {
-          const imageUrl = additionalImages[imageIndex].startsWith('http') 
-            ? additionalImages[imageIndex]
-            : `${baseURL}${additionalImages[imageIndex].startsWith('/') ? '' : '/'}${additionalImages[imageIndex]}`;
-          
-          processedContent += `
-            <div style="margin: 20px 0; text-align: center;">
-              <img 
-                src="${imageUrl}" 
-                alt="Additional Image ${imageIndex + 1}" 
-                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
-                onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
-              />
-            </div>
-          `;
+          const currentImage = additionalImages[imageIndex];
+          if (typeof currentImage === 'string') {
+            const imageUrl = currentImage.startsWith('http') 
+              ? currentImage
+              : `${baseURL}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`;
+            
+            processedContent += `
+              <div style="margin: 20px 0; text-align: center;">
+                <img 
+                  src="${imageUrl}" 
+                  alt="Additional Image ${imageIndex + 1}" 
+                  style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                  onerror="this.onerror=null; this.src='https://placehold.co/800x400/000000/FFFFFF/png?text=Image+Not+Available';"
+                />
+              </div>
+            `;
+          }
           imageIndex++;
         }
       }

@@ -102,7 +102,7 @@ const VideoPost = () => {
   const [title, setTitle] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [videoFile, setVideoFile] = useState(null);
-  const [additionalImages, setAdditionalImages] = useState([null, null, null, null, null]);
+  const [additionalImages, setAdditionalImages] = useState([null, null, null, null]);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [state, setState] = useState('');
@@ -529,6 +529,7 @@ const VideoPost = () => {
       formData.append('content', actualContent.trim());
       formData.append('category', category);
       formData.append('contentType', 'video');
+      formData.append('categoryType', uploadMethod); // Add categoryType field
       
       // Add video data based on upload method
       if (uploadMethod === 'youtube') {
@@ -558,7 +559,8 @@ const VideoPost = () => {
         content: `${actualContent.trim().substring(0, 50)}${actualContent.length > 50 ? '...' : ''}`,
         category,
         contentType: 'video',
-        uploadMethod,
+        categoryType: uploadMethod,
+        youtubeUrl: uploadMethod === 'youtube' ? youtubeUrl : undefined,
         state: state || '[not set]',
         district: district || '[not set]',
         videoInfo: uploadMethod === 'youtube' ? youtubeUrl : (videoFile ? {
@@ -578,11 +580,10 @@ const VideoPost = () => {
       // Set upload message
       setError('Uploading video... Please wait');
       
-      // Try main endpoint
+      // Make the API request to the news/create endpoint
       let response;
       try {
-        console.log('Attempting main endpoint: /api/news/create');
-        // Make the API request to the specified endpoint
+        console.log('Making request to /api/news/create');
         response = await axios({
           method: 'post',
           url: `${API_BASE_URL}/api/news/create`,
@@ -598,47 +599,18 @@ const VideoPost = () => {
             console.log(`Upload progress: ${percentCompleted}%`);
           }
         });
-      } catch (mainEndpointErr) {
-        console.error('Main endpoint failed:', mainEndpointErr);
+      } catch (err) {
+        console.error('API request failed:', err);
         
         // Check for authentication errors (401/403)
-        if (mainEndpointErr.response && (mainEndpointErr.response.status === 401 || mainEndpointErr.response.status === 403)) {
+        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
           console.log('Token is invalid or expired');
           setShowSessionExpiredDialog(true);
           return;
         }
         
-        // Try fallback endpoint
-        try {
-          console.log('Trying alternative endpoint: /api/videos');
-          response = await axios({
-            method: 'post',
-            url: `${API_BASE_URL}/api/videos`,
-            data: formData,
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'multipart/form-data'
-            },
-            timeout: uploadMethod === 'file' ? VIDEO_UPLOAD_TIMEOUT : axios.defaults.timeout,
-            onUploadProgress: (progressEvent) => {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percentCompleted);
-              console.log(`Upload progress: ${percentCompleted}%`);
-            }
-          });
-        } catch (altErr) {
-          console.error('Alternative endpoint failed:', altErr);
-          
-          // Check for authentication errors
-          if (altErr.response && (altErr.response.status === 401 || altErr.response.status === 403)) {
-            console.log('Token is invalid or expired');
-            setShowSessionExpiredDialog(true);
-            return;
-          }
-          
-          // If both endpoints fail, throw error to be caught by outer catch
-          throw altErr;
-        }
+        // Throw error to be caught by outer catch
+        throw err;
       }
       
       console.log('Video post created successfully:', response.data);
@@ -671,7 +643,7 @@ const VideoPost = () => {
       setTitle('');
       setYoutubeUrl('');
       setVideoFile(null);
-      setAdditionalImages([null, null, null, null, null]);
+      setAdditionalImages([null, null, null, null]);
       setContent('');
       setCategory('');
       setState('');
