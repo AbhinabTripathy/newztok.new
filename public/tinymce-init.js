@@ -5,7 +5,7 @@
 
 (function() {
   // Set the TinyMCE API key
-  window.tinymceApiKey = '1v3jukg44alvsinlyzim7s4ajgea882ixa2vnu7y1wcwmgh5';
+  window.tinymceApiKey = '938qkdjsgovj6qrh2hpt69gtlvrne8jui0355655yr2y9lux';
 
   // Handle local storage for settings instead of cookies
   const originalStorage = window.localStorage;
